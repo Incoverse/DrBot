@@ -175,6 +175,10 @@
     }
   },
 
+  //? This is the streamer where the /timetostream command will get the schedule from.
+  //! If you do not want to use this command, set this to null.
+  "ttnsStreamer": "your_twitch_username",
+
   //? This specifies resources for the bot to use, such as links to wordle answers and guesses. (Make sure to use raw links if using GitHub!)
   //! You can access these resources using 'global.app.config.resources.xyz'
   //! If you need to process some of the data in these resources, like fetching data from a URL, you can do so in the 'setup' function in your event/command file, and then you can assign it to global.resources.xyz

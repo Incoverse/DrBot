@@ -68,7 +68,8 @@ interface AppInterface {
           [key:string]: string | {type: string, format:string} | Array<string | {type: string, format:string}>;
         }
       }
-    }
+    };
+    ttnsStreamer: string;
     resources: {
       wordle: {
         validGuesses: string; // URL to a text file with valid guesses
