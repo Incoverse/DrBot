@@ -1,0 +1,55 @@
+{
+  "name": "iris",
+  "version": "2.7.0",
+  "description": "IRIS (Intelligent Response Interface System) is a Discord bot that is focused on fun and utlities, as well as helping people understand TypeScript.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && node makeRunnable.js",
+    "cleanup": "rm -rf dist pre-dist || del dist pre-dist /f /s /q",
+    "watch": "npx tsc-watch --onSuccess \"node makeRunnable.js\"",
+    "compile": "npm run cleanup && npm run build",
+    "start": "node --no-warnings ./dist/index.js",
+    "CnR": "npm run cleanup && npm install && npm run build && npm run start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Incoverse/IRIS.git"
+  },
+  "type": "module",
+  "keywords": [
+    "discordjs",
+    "discord-bot",
+    "nodejs"
+  ],
+  "author": "Inimi",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/Incoverse/IRIS/issues"
+  },
+  "homepage": "https://github.com/Incoverse/IRIS#readme",
+  "dependencies": {
+    "@vscode/vscode-languagedetection": "^1.0.22",
+    "chalk": "^5.2.0",
+    "cron": "^3.1.7",
+    "discord.js": "^14.15.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "jsonc-parser": "^3.3.1",
+    "md5": "^2.3.0",
+    "mingo": "^6.4.13",
+    "moment-timezone": "^0.5.41",
+    "mongodb": "^6.7.0",
+    "node-ipc": "10.1.0",
+    "pretty-ms": "^9.1.0",
+    "public-ip": "^6.0.2",
+    "resolve-tspaths": "^0.8.18",
+    "tsc-watch": "^6.2.0",
+    "uuid4": "^2.0.3"
+  },
+  "devDependencies": {
+    "@types/md5": "^2.3.5",
+    "@types/node-ipc": "^9.2.3",
+    "@types/uuid4": "^2.0.0",
+    "typescript": "^5.2.2"
+  }
+}

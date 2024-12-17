@@ -1,0 +1,282 @@
+//* This is the configuration file for DrBot. It contains all the settings that DrBot will use to run.
+//* This file is mostly filled with default values, but some values need to be filled in for the bot to work, such as:
+//* - "mainServer" - The server that DrBot will operate on if running in production mode
+//* - "developmentServer" - The server that DrBot will operate on if running in development mode
+//* - "mongoDBServer" - The MongoDB server that DrBot will connect to (optional, if not provided, DrBot will use store the data locally)
+//* - "permissions" - The permissions that DrBot will use to determine who can use what commands
+
+
+
+{
+  //? Any user that will be considered as an "owner" of the bot. (ID)
+  //? The owners of the Discord Application are automatically added to this list. Even if the application is in a Discord Developer team.
+  //! Any other user(s) that you want DrBot to consider as an owner need to be added here.
+  "externalOwners": [],
+
+  //? If the bot is running as a low-privileged user, with the required commands set as NOPASSWD in /etc/sudoers, set this to true.
+  //* When this is set to true, DrBot will run certain commands with sudo.
+  //! If you're running the bot on Windows, set this to false.
+  "lowPrivileged": false,
+
+  //? This the main server that the bot will operate on if "DEVELOPMENT" is set to "NO" in .env (ID)
+  //* global.app.config.mainServer will automatically get replaced with global.app.config.developmentServer if running in development mode.
+  "mainServer": "1234567890123456789",
+  //? This is the development server that the bot will operate on if "DEVELOPMENT" is set to "YES" in .env (ID)
+  "developmentServer": "1234567890123456789",
+
+  //? This will automatically compile changes to DrBot's source code while she is running.
+  //? The command ran by the automatic compiler is: npx tsc-watch --onSuccess "node makeRunnable.js"
+  //! This will automatically be set to false if DrBot is running in production mode.
+  "autoCompile": true,
+
+  //? Show errors on "There was an error while executing this command!".
+  //? If the user that ran the command is an owner, detailed error information will be shown.
+  //! For development purposes, it is recommended to keep this on.
+  "showErrors": true,
+  //? This option shows messages like "registered command xyz", "running event xyz", etc. recommended to be on for satisfication purposes.
+  "debugging": {
+    //? This option shows debug messages in the console coming frmo global.logger.debug* functions.
+    "debugMessages": true,
+    //? This option shows internal communication messages between different parts of DrBot.
+    "internalCommunication": true,
+    //? This option shows performance information in the console. (When performance timers are started and stopped)
+    "performanceInfo": true
+  },
+
+  //? This option allows you to skip the 3 second wait that DrBot gives after it fails to connect to the MongoDB server (or if it wasn't provided in the first place).
+  "skipMongoFailWait": true,
+
+  //? This option lets you choose where you want the data to be stored if MongoDB is not available.
+  //! ------------------------------------------------------------------
+  //! Production (user   ): <backupStoragePath>/production/userdata/<serverID>.json
+  //! Production (server ): <backupStoragePath>/production/serverdata/<serverID>.json
+  //! Production (offense): <backupStoragePath>/production/offensedata/<serverID>.json
+  //! ------------------------------------------------------------------
+  //! Development (user   ): <backupStoragePath>/development/userdata/<serverID>.json
+  //! Development (server ): <backupStoragePath>/development/serverdata/<serverID>.json
+  //! Development (offense): <backupStoragePath>/development/offensedata/<serverID>.json
+  //! ------------------------------------------------------------------
+  "backupStoragePath": "./storage", //* The path where the data will be stored (relative to DrBot's root directory)
+
+  //? This is the MongoDB server that DrBot will connect to and use for data storage.
+  //! The database credentials are in .env
+  //! The database needs to have a database called "DrBot" (production) and "DrBot_DEVELOPMENT" (dev). DrBot will automatically fill these databases with the required collections.
+  //?
+  //! Check this guide out on how to make a local MongoDB server: https://www.prisma.io/dataguide/mongodb/setting-up-a-local-mongodb-database
+  //! You can also specify a port by adding ":<port>" after the server name (e.g "inimicalpart.com:27017"). The default port is 27017.
+  "mongoDBServer": "myserver.com",
+
+  //? The appeal system is a system that allows users to appeal violations of the rules that were set by moderators.
+  //? A moderator needs to tell DrBot that a user broke the rules by using the "/mod punish rule:<rule>" command.
+  //? DrBot will automatically check if the user has broken the rule before and will adjust the punishment accordingly.
+  //! For the appeal system to work, you will need the website-part of the appeal system set-up. (website)
+  "appealSystem": {
+    //? This is the path to the website that DrBot will send users to after an offense is logged.
+    //? This is primarily used during appeals, where if a user's appeal is updated, they will receive an email.
+    //? If you don't want to or can't use this feature, set this to null, and DrBot will not send users to a website, and the appeal system will not work.
+    //* Example: "https://appeal.inimicalpart.com"
+    "website": null,
+    
+    //? This tells DrBot whether or not an email system is set up at EmailService (named pipe) / /tmp/email.sock (socket file)
+    //? This is primarily used during appeals, where if a user's appeal is updated, they will receive an email.
+    //? If you don't want to or can't use this feature, set this to false, and DrBot will not send emails.
+    "emailEnabled": false
+  },
+
+  //? These permissions are for commands.
+  //? @userid
+  //? &rolename (recommended for readability) / &roleid (recommended for reliability)
+  //? #channelname (recommended for readability) / #channelid (recommended for reliability)
+  //?
+  //? canSee is whether or not the user can see the command when they do /. If the user can't see the command, they can't use it.
+  //? Commands that only have the main command name, no subcommand group or subcommand, need a "canSee" value as well as a "canUse" value.
+  //? Commands that have more than the main command (subcommand group / subcommand) only need a "canUse" value
+  //?  
+  //! "main" takes care of permissions for the main server, meaning that those are the permissions that will be applied to the "mainServer" if "DEVELOPMENT" is set to "NO" in .env
+  //! "development" does the opposite - it will only apply the permissions on the "developmentServer", but only if "DEVELOPMENT" is set to "YES" in .env
+  //?
+  //?
+  //! These permissions are applied in a hierarchical order, from less specific to most specific. 
+  //! For example:
+  //! If "admin" (/admin) has subcommands but permissions are set so that @everyone can't use them, but there also is "admin DrBot logs" (/admin DrBot logs) set so that @everyone can use it, this will make it so that @everyone cannot use any /admin commands except for /admin DrBot logs 
+  //?
+  //! Keep also in mind that for a role/person to be able to use a more specific command, that person needs to have "canSee" set to true in the least specific permission for that command
+  "permissions": {
+    //* Permissions for the admin command
+    "admin": {
+      //* Production server permissions
+      "main": [
+        { "selector": "&Administrator", "canSee": true, "canUse": true },
+        { "selector": "&everyone", "canSee": false, "canUse": false }
+      ],
+      //* Development server permissions
+      "development": [
+        { "selector": "&Administrator", "canSee": true, "canUse": true },
+        { "selector": "&everyone", "canSee": false, "canUse": false }
+      ]
+    },
+    //* Permissions for the mod command
+    "mod": {
+      //* Production server permissions
+      "main": [
+        { "selector": "&Administrator", "canSee": true, "canUse": true },
+        { "selector": "&Moderator", "canSee": true, "canUse": true },
+        { "selector": "&everyone", "canSee": false, "canUse": false }
+      ],
+      //* Development server permissions
+      "development": [
+        { "selector": "&Administrator", "canSee": true, "canUse": true },
+        { "selector": "&Moderator", "canSee": true, "canUse": true },
+        { "selector": "&everyone", "canSee": false, "canUse": false }
+      ]
+    }
+  },
+  //? This object controls the rewards that a user receives for doing something.
+  "rewards": {
+    //? Here as it is now it is configured so that when a player reaches a certain streak, they receive perks such as access to a channel and/or a role.
+    //? If "message" is added to the rewards list, the bot will announce that the player has reached a certain streak.
+    //?
+    //? To add roles and/or channels, specify one of the following:
+    //? &rolename (recommended for readability) / &roleid (recommended for reliability)
+    //? #channelname (recommended for readability) / #channelid (recommended for reliability)
+
+
+    //* The default message format is ":fire: {user} just achieved a wordle streak of **{streak} day{s}**! :partying_face:", you can change it by
+    //* changing "message" to {"type": "message", "format": "<new format>" } (only for that streak), or adding a "message" property to the "streak" property (all streaks unless specified for streak)
+    //* 
+    //* Variables:
+    //*  {user} - Pings the user that achieved the streak
+    //*  {streak} - User's streak
+    //*  {s} - Adds an 's' if the streak is more than 1 (1 day, 2 days)
+    //*  {S} - Adds an 'S' if the streak is more than 1 (1 day, 2 days)
+    //*
+    "wordle": {
+      "streak": {
+        "7": "message",
+        "31": ["&Wordle Pro", { "type": "message", "format": ":fire::fire: {user} just became a wordle pro by beating wordle everyday for **{streak} day{s}**!"}],
+        "365": ["#1year-wordlers", "message"]
+      }
+    }
+  },
+  //? The default entry that will be created for new users, some fields will be automatically filled in by the bot.
+  //! Do not this unless you are adding new fields about a user to the database.
+  "defaultEntry": {
+    "id": "", //* ID of the user
+    "last_active": null, //* ISO timestamp of when user last ran a command or sent a message in the server 
+    "timezones": [], //* The last 4 timezones that DrBot predicted for a user when they type "timezone 4:32am" (used for birthday messages sent at 12am in their timezone)
+    "username": "", //* The user's username (e.g @theinimi)
+    "approximatedTimezone": null, //* The final timezone that DrBot has determined for the user, this is evaluated by checking what appears the most times in "timezones"
+    "birthday": null, //* User's birth date in yyyy-mm-dd format
+    "birthdayPassed": false, //* If the user had their birthday recently (no need to touch this one)
+    "isNew": false, //* If the user is a new member on the server (lasts for 7 days)
+    "gameData": {}, //* Game data from games like UNO and wordle
+    "settings": {
+      "changeTimezone": true //* Whether to change the user's approximatedTimezone when user types "timezone 4:32am" (gets set to false when user manually sets their timezone using /settimezone)
+    }
+  },
+
+  //? This specifies resources for the bot to use, such as links to wordle answers and guesses. (Make sure to use raw links if using GitHub!)
+  //! You can access these resources using 'global.app.config.resources.xyz'
+  //! If you need to process some of the data in these resources, like fetching data from a URL, you can do so in the 'setup' function in your event/command file, and then you can assign it to global.resources.xyz
+  "resources": {
+    "wordle": {
+      "validGuesses": "https://gist.githubusercontent.com/cfreshman/cdcdf777450c5b5301e439061d29694c/raw/b8375870720504ecf89c1970ea4532454f12de94/wordle-allowed-guesses.txt",
+      "validWords": "https://gist.githubusercontent.com/cfreshman/a03ef2cba789d8cf00c08f767e0fad7b/raw/1792f853e1cd0249f7588c724e00d46dbc4894eb/wordle-answers-alphabetical.txt",
+      //? These are the emojis that DrBot will use for wordle. For these default emojis to work, you need to be in two servers which I, the creator of DrBot, own.
+      //? If you want to use these emojis, please email me at contact@inimicalpart.com with an invitation link to your bot. I will add them to both servers. If you want to leave said servers, you can email me again and I will remove them. You can also use the 'Guild#leave()' method in the Discord.js library to leave the servers.
+      //? Else, you can replace these emojis with your own. The images for these emojis can be found in the "./resources/wordle" folder.
+      "emojis": {
+        "blank": {
+          "empty": "<:blank:1109487926062100590>",
+          "gray": "<:gray_blank:1109486366242394215>",
+          "yellow": "<:yellow_blank:1109486370226962582>",
+          "green": "<:green_blank:1109486368473743392>"
+        },
+        "gray": {
+          "a": "<:gray_a:1109422386496950302>",
+          "b": "<:gray_b:1109422388417937498>",
+          "c": "<:gray_c:1109422389453914174>",
+          "d": "<:gray_d:1109422391223926804>",
+          "e": "<:gray_e:1109422393249759282>",
+          "f": "<:gray_f:1109422394872975380>",
+          "g": "<:gray_g:1109422397158862918>",
+          "h": "<:gray_h:1109422398400376842>",
+          "i": "<:gray_i:1109422399495077888>",
+          "j": "<:gray_j:1109422401042788383>",
+          "k": "<:gray_k:1109423075809832990>",
+          "l": "<:gray_l:1109423078519349328>",
+          "m": "<:gray_m:1109422404402425856>",
+          "n": "<:gray_n:1109423080243220621>",
+          "o": "<:gray_o:1109423082415865886>",
+          "p": "<:gray_p:1109422408173113414>",
+          "q": "<:gray_q:1109423083539939448>",
+          "r": "<:gray_r:1109422411100729395>",
+          "s": "<:gray_s:1109423084991172748>",
+          "t": "<:gray_t:1109423086840852503>",
+          "u": "<:gray_u:1109422414602981537>",
+          "v": "<:gray_v:1109423088317243563>",
+          "w": "<:gray_w:1109423089722347622>",
+          "x": "<:gray_x:1109423092134055976>",
+          "y": "<:gray_y:1109422418222649394>",
+          "z": "<:gray_z:1109423093371375706>"
+        },
+        "yellow": {
+          "a": "<:yellow_a:1109268250291879978>",
+          "b": "<:yellow_b:1109268251902488617>",
+          "c": "<:yellow_c:1109268253961891911>",
+          "d": "<:yellow_d:1109268255534755920>",
+          "e": "<:yellow_e:1109268257329909871>",
+          "f": "<:yellow_f:1109268258936340651>",
+          "g": "<:yellow_g:1109268260454674523>",
+          "h": "<:yellow_h:1109268262740561920>",
+          "i": "<:yellow_i:1109268263961120779>",
+          "j": "<:yellow_j:1109268265986949201>",
+          "k": "<:yellow_k:1109268753348296774>",
+          "l": "<:yellow_l:1109268268201562132>",
+          "m": "<:yellow_m:1109268754816319670>",
+          "n": "<:yellow_n:1109268757660053544>",
+          "o": "<:yellow_o:1109268271905124382>",
+          "p": "<:yellow_p:1109268758809280562>",
+          "q": "<:yellow_q:1109268276170719274>",
+          "r": "<:yellow_r:1109268760763834438>",
+          "s": "<:yellow_s:1109268280205652040>",
+          "t": "<:yellow_t:1109268282000801853>",
+          "u": "<:yellow_u:1109268970080571492>",
+          "v": "<:yellow_v:1109268762143760414>",
+          "w": "<:yellow_w:1109268285624688701>",
+          "x": "<:yellow_x:1109268764412870786>",
+          "y": "<:yellow_y:1109268291467346000>",
+          "z": "<:yellow_z:1109268292767596634>"
+        },
+        "green": {
+          "a": "<:green_a:1109269732793778226>",
+          "b": "<:green_b:1109269734115004477>",
+          "c": "<:green_c:1109269736405090365>",
+          "d": "<:green_d:1109269738271547503>",
+          "e": "<:green_e:1109269740343541820>",
+          "f": "<:green_f:1109269741757014096>",
+          "g": "<:green_g:1109269743040471143>",
+          "h": "<:green_h:1109269744969846876>",
+          "i": "<:green_i:1109269746546905218>",
+          "j": "<:green_j:1109269748933480468>",
+          "k": "<:green_k:1109269750447624212>",
+          "l": "<:green_l:1109269963459534849>",
+          "m": "<:green_m:1109269965229522964>",
+          "n": "<:green_n:1109269753970827376>",
+          "o": "<:green_o:1109269967439921312>",
+          "p": "<:green_p:1109269759222087690>",
+          "q": "<:green_q:1109269760866271313>",
+          "r": "<:green_r:1109269968920522752>",
+          "s": "<:green_s:1109269764318179440>",
+          "t": "<:green_t:1109421419156213771>",
+          "u": "<:green_u:1109422081818492948>",
+          "v": "<:green_v:1109269768168546325>",
+          "w": "<:green_w:1109422084263788616>",
+          "x": "<:green_x:1109269773424001215>",
+          "y": "<:green_y:1109421977401303040>",
+          "z": "<:green_z:1109421979326500935>"
+        }
+      } 
+    }
+  }
+}
