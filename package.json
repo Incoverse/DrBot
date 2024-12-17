@@ -1,7 +1,7 @@
 {
-  "name": "iris",
+  "name": "drbot",
   "version": "2.7.0",
-  "description": "IRIS (Intelligent Response Interface System) is a Discord bot that is focused on fun and utlities, as well as helping people understand TypeScript.",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "build": "tsc && node makeRunnable.js",
@@ -29,6 +29,7 @@
   "homepage": "https://github.com/Incoverse/IRIS#readme",
   "dependencies": {
     "@vscode/vscode-languagedetection": "^1.0.22",
+    "axios": "^1.7.9",
     "chalk": "^5.2.0",
     "cron": "^3.1.7",
     "discord.js": "^14.15.2",

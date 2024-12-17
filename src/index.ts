@@ -63,9 +63,9 @@ const __dirname = dirname(__filename);
 dotenv.config();
 declare const global: DrBotGlobal;
 
-//! ------------------------------------------- !\\
+//! -------------------------------------------- !\\
 //! -- This is the start of the DrBot journey -- !\\
-//! ------------------------------------------- !\\
+//! -------------------------------------------- !\\
 
 let client: Client = null;
 
@@ -835,7 +835,7 @@ global.identifier = md5(os.userInfo().username + "@" + os.hostname()).substring(
             let files = readdirSync(folder, {recursive: true})
             for (let file of files) {
                 if (!(file as string).endsWith(".cmdlib.js") || file instanceof Buffer) continue
-                const subcommand = await import(join(folder, file))
+                const subcommand = await import((process.platform == "win32" ? "file://" : "" ) + join(folder, file))
                 if (!subcommand.default || !extendsDrBotSubcommand(subcommand.default)) continue
                 if (!subcommand.default.parentCommand) {
                   global.logger.warn(`Subcommand with class name ${chalk.yellowBright(subcommand.default.name)} (${chalk.yellowBright(basename(file))}) does not have a parent command defined. Skipping...`,returnFileName());

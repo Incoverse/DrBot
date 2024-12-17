@@ -40,7 +40,8 @@ export abstract class DrBotSubcommand {
     
     
     constructor(filename?: string) {
-        let fullPath = new Error().stack.split("\n")[2].replace(/.*file:\/\//, "").replace(/:.*/g, "");
+        let fullPath = new Error().stack.split("\n")[2].replace(/.*file:\/\//, "").replace(/:[0-9]+:[0-9]+.*/g, "").replace(/^\//,"")
+
         if (filename) this._filename = filename;
         else {
             //! Find the class caller, get their filename, and set it as the filename
@@ -48,7 +49,7 @@ export abstract class DrBotSubcommand {
         }
 
 
-        this._hash = crypto.createHash("md5").update(readFileSync(fullPath)).digest("hex")
+        this._hash = crypto.createHash("md5").update(readFileSync(fullPath, "utf-8")).digest("hex")
 
     }
 

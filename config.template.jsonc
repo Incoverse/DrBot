@@ -24,7 +24,7 @@
   //? This is the development server that the bot will operate on if "DEVELOPMENT" is set to "YES" in .env (ID)
   "developmentServer": "1234567890123456789",
 
-  //? This will automatically compile changes to DrBot' source code while she is running.
+  //? This will automatically compile changes to DrBot's source code while she is running.
   //? The command ran by the automatic compiler is: npx tsc-watch --onSuccess "node makeRunnable.js"
   //! This will automatically be set to false if DrBot is running in production mode.
   "autoCompile": true,
@@ -85,8 +85,8 @@
 
   //? These permissions are for commands.
   //? @userid
-  //? &rolename (recommended) / &roleid
-  //? #channelname (recommended) / #channelid
+  //? &rolename (recommended for readability) / &roleid (recommended for reliability)
+  //? #channelname (recommended for readability) / #channelid (recommended for reliability)
   //?
   //? canSee is whether or not the user can see the command when they do /. If the user can't see the command, they can't use it.
   //? Commands that only have the main command name, no subcommand group or subcommand, need a "canSee" value as well as a "canUse" value.
@@ -98,11 +98,11 @@
   //?
   //! These permissions are applied in a hierarchical order, from less specific to most specific. 
   //! For example:
-  //! If "admin" (/admin) has subcommands but permissions are set so that @everyone can't use them, but there also is "admin drbot logs" (/admin drbot logs) set so that @everyone can use it, this will make it so that @everyone cannot use any /admin commands except for /admin drbot logs 
+  //! If "admin" (/admin) has subcommands but permissions are set so that @everyone can't use them, but there also is "admin DrBot logs" (/admin DrBot logs) set so that @everyone can use it, this will make it so that @everyone cannot use any /admin commands except for /admin DrBot logs 
   //?
   //! Keep also in mind that for a role/person to be able to use a more specific command, that person needs to have "canSee" set to true in the least specific permission for that command
   "permissions": {
-    //* Permissions for the main server
+    //* Permissions for the admin command
     "admin": {
       //* Production server permissions
       "main": [
@@ -115,12 +115,15 @@
         { "selector": "&everyone", "canSee": false, "canUse": false }
       ]
     },
+    //* Permissions for the mod command
     "mod": {
+      //* Production server permissions
       "main": [
         { "selector": "&Administrator", "canSee": true, "canUse": true },
         { "selector": "&Moderator", "canSee": true, "canUse": true },
         { "selector": "&everyone", "canSee": false, "canUse": false }
       ],
+      //* Development server permissions
       "development": [
         { "selector": "&Administrator", "canSee": true, "canUse": true },
         { "selector": "&Moderator", "canSee": true, "canUse": true },
@@ -128,9 +131,35 @@
       ]
     }
   },
+  //? This object controls the rewards that a user receives for doing something.
+  "rewards": {
+    //? Here as it is now it is configured so that when a player reaches a certain streak, they receive perks such as access to a channel and/or a role.
+    //? If "message" is added to the rewards list, the bot will announce that the player has reached a certain streak.
+    //?
+    //? To add roles and/or channels, specify one of the following:
+    //? &rolename (recommended for readability) / &roleid (recommended for reliability)
+    //? #channelname (recommended for readability) / #channelid (recommended for reliability)
 
+
+    //* The default message format is ":fire: {user} just achieved a wordle streak of **{streak} day{s}**! :partying_face:", you can change it by
+    //* changing "message" to {"type": "message", "format": "<new format>" } (only for that streak), or adding a "message" property to the "streak" property (all streaks unless specified for streak)
+    //* 
+    //* Variables:
+    //*  {user} - Pings the user that achieved the streak
+    //*  {streak} - User's streak
+    //*  {s} - Adds an 's' if the streak is more than 1 (1 day, 2 days)
+    //*  {S} - Adds an 'S' if the streak is more than 1 (1 day, 2 days)
+    //*
+    "wordle": {
+      "streak": {
+        "7": "message",
+        "31": ["&Wordle Pro", { "type": "message", "format": ":fire::fire: {user} just became a wordle pro by beating wordle everyday for **{streak} day{s}**!"}],
+        "365": ["#1year-wordlers", "message"]
+      }
+    }
+  },
   //? The default entry that will be created for new users, some fields will be automatically filled in by the bot.
-  //! Do not edit this unless you are adding new fields about a user to the database.
+  //! Do not this unless you are adding new fields about a user to the database.
   "defaultEntry": {
     "id": "", //* ID of the user
     "last_active": null, //* ISO timestamp of when user last ran a command or sent a message in the server 
@@ -145,6 +174,10 @@
       "changeTimezone": true //* Whether to change the user's approximatedTimezone when user types "timezone 4:32am" (gets set to false when user manually sets their timezone using /settimezone)
     }
   },
+
+  //? This is the streamer where the /timetostream command will get the schedule from.
+  //! If you do not want to use this command, set this to null.
+  "ttnsStreamer": "your_twitch_username",
 
   //? This specifies resources for the bot to use, such as links to wordle answers and guesses. (Make sure to use raw links if using GitHub!)
   //! You can access these resources using 'global.app.config.resources.xyz'
