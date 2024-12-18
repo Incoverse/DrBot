@@ -40,7 +40,7 @@ export abstract class DrBotSubcommand {
     
     
     constructor(filename?: string) {
-        let fullPath = new Error().stack.split("\n")[2].replace(/.*file:\/\//, "").replace(/:[0-9]+:[0-9]+.*/g, "").replace(/^\//,"")
+        let fullPath = new Error().stack.split("\n")[2].replace(/.*file:\/\//, "").replace(/:[0-9]+:[0-9]+.*/g, "").replace(/^\//, process.platform === "win32" ? "" : "/")
 
         if (filename) this._filename = filename;
         else {
