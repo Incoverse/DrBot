@@ -25,7 +25,7 @@ import { returnFileName } from "../misc.js";
 
 declare const global: DrBotGlobal
 
-const connectionURL = global.app.config.development ? "ws://api.localhost:3000/ws/appeal/bot/" : "wss://api.inimicalpart.com/ws/appeal/bot/";
+const connectionURL = global.app.config.development ? "ws://api.localhost:3000/ws/bot/" : "wss://api.inimicalpart.com/ws/bot/";
 
 export default class ICOMWS {
     public UUID: string;
