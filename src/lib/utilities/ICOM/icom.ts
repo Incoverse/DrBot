@@ -44,7 +44,7 @@ export default class ICOMWS {
     constructor(UUID: string, verificationKey: string, intentions: ("icom.appeal"|"icom.oauth")[] = [], debug = false) {
         this.UUID = UUID;
         this.debug = debug;
-        this.verificationKey = verificationKey;
+        this.verificationKey = Buffer.from(verificationKey, "base64").toString("utf-8");
 
         this.intentions = intentions;
 
