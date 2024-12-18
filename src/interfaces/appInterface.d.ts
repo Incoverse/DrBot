@@ -69,7 +69,7 @@ interface AppInterface {
         }
       }
     };
-    ttnsStreamer: string;
+    nsStreamer: string;
     resources: {
       wordle: {
         validGuesses: string; // URL to a text file with valid guesses

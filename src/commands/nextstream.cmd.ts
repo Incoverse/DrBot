@@ -23,7 +23,7 @@ import exp from "constants";
 import { CronJob } from "cron";
 
 declare const global: DrBotGlobal;
-export default class TimeToNextStream extends DrBotCommand {
+export default class NextStream extends DrBotCommand {
   
   private twitchInfo: {
     access_token: string,
@@ -37,7 +37,7 @@ export default class TimeToNextStream extends DrBotCommand {
     display_name: string
   } = null;
   protected _slashCommand: DrBotSlashCommand = new Discord.SlashCommandBuilder()
-    .setName("timetonextstream")
+    .setName("nextstream")
     .setDescription("Time to the next stream.")
 
   public async setup(client: Discord.Client, reason: "reload" | "startup" | "duringRun" | null): Promise<boolean> {
@@ -47,7 +47,7 @@ export default class TimeToNextStream extends DrBotCommand {
       return false;
     }
 
-    if (!global.app.config.ttnsStreamer) {
+    if (!global.app.config.nsStreamer) {
       global.logger.debugWarn("Streamer not set in the config file.", this.fileName);
       return false;
     }
@@ -55,7 +55,7 @@ export default class TimeToNextStream extends DrBotCommand {
     await this.getAccessToken();
     await this.createRefreshInterval(this.twitchInfo.expires_in);
 
-    this.streamer = await axios.get(`https://api.twitch.tv/helix/users?login=${global.app.config.ttnsStreamer}`, {
+    this.streamer = await axios.get(`https://api.twitch.tv/helix/users?login=${global.app.config.nsStreamer}`, {
         headers: {
             'Client-Id': process.env.TWITCH_CLIENT_ID,
             'Authorization': `Bearer ${this.twitchInfo.access_token}`
@@ -117,7 +117,25 @@ export default class TimeToNextStream extends DrBotCommand {
 
     const segments = schedule.segments.filter((segment) => {
       return segment.canceled_until === null && !segment.vacation
+    }).filter((segment) => {
+      return new Date(segment.start_time) > new Date(Date.now())
     })
+
+    if (segments.length === 0) {
+      return await interaction.reply({
+        embeds: [
+          new Discord.EmbedBuilder()
+            .setColor("NotQuiteBlack")
+            .setTitle("No Streams Scheduled")
+            .setDescription("There are no streams scheduled for '" + this.streamer.display_name + "'")
+            .setAuthor({
+              name: interaction.user.tag,
+              iconURL: interaction.user.displayAvatarURL()
+            })
+        ],
+        ephemeral: true
+      })
+    }
 
     let nextStream = Math.floor(new Date(segments[0].start_time).getTime()/1000);
 
