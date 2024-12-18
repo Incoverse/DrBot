@@ -30,6 +30,12 @@ export default class TimeToNextStream extends DrBotCommand {
     expires_in: number
   } = null;
   private refreshInterval: CronJob | null = null;
+
+  private streamer: {
+    id: string,
+    login: string,
+    display_name: string
+  } = null;
   protected _slashCommand: DrBotSlashCommand = new Discord.SlashCommandBuilder()
     .setName("timetonextstream")
     .setDescription("Time to the next stream.")
@@ -48,6 +54,15 @@ export default class TimeToNextStream extends DrBotCommand {
 
     await this.getAccessToken();
     await this.createRefreshInterval(this.twitchInfo.expires_in);
+
+    this.streamer = await axios.get(`https://api.twitch.tv/helix/users?login=${global.app.config.ttnsStreamer}`, {
+        headers: {
+            'Client-Id': process.env.TWITCH_CLIENT_ID,
+            'Authorization': `Bearer ${this.twitchInfo.access_token}`
+        }
+    }).then((response) => {
+        return response.data.data[0];
+    })
     return await super.setup(client, reason);
 
   }
@@ -87,40 +102,38 @@ export default class TimeToNextStream extends DrBotCommand {
 
   public async runCommand(interaction: Discord.CommandInteraction) {
 
-    let streamer = global.app.config.ttnsStreamer;
-
-    let streamerID = await axios.get(`https://api.twitch.tv/helix/users?login=${streamer}`, {
-        headers: {
-            'Client-Id': process.env.TWITCH_CLIENT_ID,
-            'Authorization': `Bearer ${this.twitchInfo.access_token}`
-        }
-    }).then((response) => {
-        return response.data.data[0].id;
-    })
-
-    let schedule = await axios.get(`https://api.twitch.tv/helix/schedule?broadcaster_id=${streamerID}`, {
+    let schedule = this.cache.get("schedule");
+    if (!schedule) {
+      schedule = await axios.get(`https://api.twitch.tv/helix/schedule?broadcaster_id=${this.streamer.id}`, {
         headers: {
           'Client-Id': process.env.TWITCH_CLIENT_ID,
           'Authorization': `Bearer ${this.twitchInfo.access_token}`
-    }}).then((response) => {
-        return response.data.data;
-    });
+        }}).then((response) => {
+          return response.data.data;
+        })
 
-    let nextStream = Math.floor(new Date(schedule.segments[0].start_time).getTime()/1000);
+      this.cache.set("schedule", schedule, new Date(Date.now() + 1000 * 60 * 5))
+    }
+
+    const segments = schedule.segments.filter((segment) => {
+      return segment.canceled_until === null && !segment.vacation
+    })
+
+    let nextStream = Math.floor(new Date(segments[0].start_time).getTime()/1000);
 
     return await interaction.reply({
         embeds: [
         new Discord.EmbedBuilder()
             .setColor("NotQuiteBlack")
-            .setTitle("Next Stream")
+            .setTitle("Next Scheduled Stream for '" + this.streamer.display_name + "'")
             .addFields(
-                { name: 'Title', value: schedule.segments[0].title },
-                { name: 'Category', value: schedule.segments[0].category.name},
+                { name: 'Title', value: segments[0].title },
+                { name: 'Category', value: segments[0].category.name},
                 { name: 'Stream Start', value: `<t:${nextStream}:F> (<t:${nextStream}:R>)`},
             )
             .setAuthor({
-            name: interaction.user.tag,
-            iconURL: interaction.user.displayAvatarURL()
+              name: interaction.user.tag,
+              iconURL: interaction.user.displayAvatarURL()
             })
         ],
         ephemeral: true

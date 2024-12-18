@@ -24,10 +24,9 @@ import fs from "fs";
 import chalk from "chalk";
 import crypto from "crypto";
 import { updateObject } from "mingo/updater";
+import { returnFileName } from "./misc.js";
 
 type DataType = "user" | "server" | "offense" | "ticket"
-
-const __filename = fileURLToPath(import.meta.url);
 
 declare const global: DrBotGlobal
 
@@ -42,11 +41,6 @@ export let dataLocations = {
 };
 
 
-export const returnFileName = () =>
-    __filename.split(process.platform == "linux" ? "/" : "\\")[
-      __filename.split(process.platform == "linux" ? "/" : "\\").length - 1
-];
-
 export async function checkMongoAvailability() {
     let client = null;
     try {
@@ -60,7 +54,7 @@ export async function checkMongoAvailability() {
         } else method = "file"
         return res
     } catch (error) {
-        global.logger.debugError("No MongoDB availability. Reason: " + error.toString(), returnFileName())
+        global.logger.debugError("No MongoDB availability. Reason: " + error.toString(), returnFileName(import.meta.url))
         method = "file"
         if (client) client.close()
         return false
@@ -90,7 +84,7 @@ function parseDataType(input): { collection: string, filePathRelative: string } 
                 filePathRelative: `${global.app.config.development ? "development" : "production"}/ticketdata/${global.app.config.mainServer}.json`
             }
         default:
-            global.logger.debugError("Invalid data type: " + input, returnFileName())
+            global.logger.debugError("Invalid data type: " + input, returnFileName(import.meta.url))
             return { collection: null, filePathRelative: null }
     }
 }
@@ -108,7 +102,7 @@ export async function setupFiles() {
             let dir = path.dirname(filePath)
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
             fs.writeFileSync(filePath, "[]")
-            global.logger.debug("Created file: " + chalk.yellowBright(file), returnFileName())
+            global.logger.debug("Created file: " + chalk.yellowBright(file), returnFileName(import.meta.url))
         }
     }
     dataLocations.userdata =    `userdata/${global.app.config.mainServer}.json`,
@@ -128,7 +122,7 @@ async function del(oneOrMany: "one" | "many", dataType: DataType, filter: object
             const col = connectionClient.db(global.app.config.development ? "DrBot_DEVELOPMENT" : "DrBot").collection(collection)
             return oneOrMany == "one" ? await col.deleteOne(filter) : await col.deleteMany(filter)
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return false
         }
     } else {
@@ -147,7 +141,7 @@ async function del(oneOrMany: "one" | "many", dataType: DataType, filter: object
             fs.writeFileSync(filePath, JSON.stringify(data))
             return toBeDeleted
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return false
         } 
     }
@@ -166,7 +160,7 @@ async function get(oneOrMany: "one" | "many", dataType: DataType, filter: object
             const col = connectionClient.db(global.app.config.development ? "DrBot_DEVELOPMENT" : "DrBot").collection(collection)
             return oneOrMany == "one" ? await col.findOne(filter) : await col.find(filter).toArray()
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return null
         }
     } else {
@@ -177,7 +171,7 @@ async function get(oneOrMany: "one" | "many", dataType: DataType, filter: object
             let query = new Query(filter as any)
             return oneOrMany == "one" ? data.find((doc) => query.test(doc)) : data.filter((doc) => query.test(doc))
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return null
         }
     }
@@ -193,7 +187,7 @@ async function add(oneOrMany: "one" | "many", dataType: DataType, data: { [key: 
             const col = connectionClient.db(global.app.config.development ? "DrBot_DEVELOPMENT" : "DrBot").collection(collection)
             return oneOrMany == "one" ? await col.insertOne(data as { [key: string]: any }) : await col.insertMany(data as Array<{ [key: string]: any }>)
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return false
         }
     } else {
@@ -222,7 +216,7 @@ async function add(oneOrMany: "one" | "many", dataType: DataType, data: { [key: 
             fs.writeFileSync(filePath, JSON.stringify(newData))
             return data
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return false
         }
     }
@@ -240,7 +234,7 @@ async function update(oneOrMany: "one" | "many", dataType: DataType, filter: obj
             const col = connectionClient.db(global.app.config.development ? "DrBot_DEVELOPMENT" : "DrBot").collection(collection)
             return oneOrMany == "one" ? await col.updateOne(filter, data) : await col.updateMany(filter, data)
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return false
         }
     } else {
@@ -267,7 +261,7 @@ async function update(oneOrMany: "one" | "many", dataType: DataType, filter: obj
             fs.writeFileSync(filePath, JSON.stringify(alreadyExistingData))
             return true
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return false
         }
     }
@@ -281,7 +275,7 @@ async function replace(dataType: DataType, filter: object, data: object) {
             const col = connectionClient.db(global.app.config.development ? "DrBot_DEVELOPMENT" : "DrBot").collection(collection)
             return await col.replaceOne(filter, data)
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return false
         }
     } else {
@@ -297,7 +291,7 @@ async function replace(dataType: DataType, filter: object, data: object) {
             fs.writeFileSync(filePath, JSON.stringify(alreadyExistingData))
             return true
         } catch (error) {
-            global.logger.error(error.toString(), returnFileName())
+            global.logger.error(error.toString(), returnFileName(import.meta.url))
             return false
         }
     }
@@ -319,11 +313,11 @@ export async function setupMongo() {
         for (const collection of requiredCollections) {
             if (!collections.includes(collection)) {
                 await database.createCollection(collection)
-                global.logger.debug(`Successfully created a missing collection in the database: ${chalk.yellow(collection)}`,returnFileName());
+                global.logger.debug(`Successfully created a missing collection in the database: ${chalk.yellow(collection)}`,returnFileName(import.meta.url));
             }
         }
     } catch (error) {
-        global.logger.error(error.toString(), returnFileName())
+        global.logger.error(error.toString(), returnFileName(import.meta.url))
         return false
     }
 
@@ -335,7 +329,7 @@ export async function setupMongo() {
 }
 
 export async function cleanup() {
-    if (connectionClient) await connectionClient.close().then(() => global.logger.debug("Closed MongoDB connection.", returnFileName()))
+    if (connectionClient) await connectionClient.close().then(() => global.logger.debug("Closed MongoDB connection.", returnFileName(import.meta.url)))
 }
 
 
