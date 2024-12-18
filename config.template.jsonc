@@ -175,9 +175,9 @@
     }
   },
 
-  //? This is the streamer where the /timetostream command will get the schedule from.
+  //? This is the streamer where the /nextstream command will get the schedule from.
   //! If you do not want to use this command, set this to null.
-  "ttnsStreamer": "your_twitch_username",
+  "nsStreamer": "your_twitch_username",
 
   //? This specifies resources for the bot to use, such as links to wordle answers and guesses. (Make sure to use raw links if using GitHub!)
   //! You can access these resources using 'global.app.config.resources.xyz'
