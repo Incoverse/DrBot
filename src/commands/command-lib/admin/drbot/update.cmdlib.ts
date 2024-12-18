@@ -281,20 +281,25 @@ export const returnFileName = () =>
   ];
 
 
-function groupByCommit(messages: string[]): Map<string, string[]> {
+  function groupByCommit(messages: string[]): Map<string, string[]> {
     const result = new Map<string, string[]>();
     let currentCommit: string | undefined;
 
     for (const message of messages) {
         if (message.startsWith("commit ")) {
-        currentCommit = message.replace("commit ", "").trim();
-        result.set(currentCommit, []); // Create a new array for this commit (if not already present)
+            currentCommit = message.replace("commit ", "").trim();
+            result.set(currentCommit, []); // Create a new array for this commit (if not already present)
         } else if (currentCommit) {
-        const messagesForCommit = result.get(currentCommit) || []; // Get existing messages or create an empty array
-        messagesForCommit.push(message);
-        result.set(currentCommit, messagesForCommit); // Update the map with the new array
+            if (!message.startsWith("Merge pull request #")) {
+                const messagesForCommit = result.get(currentCommit) || []; // Get existing messages or create an empty array
+                messagesForCommit.push(message);
+                
+                result.set(currentCommit, messagesForCommit.map(a => a.trim()).filter(a => a !== "")); // Update the array
+
+
+            }
         } else {
-        // Empty messages or messages before the first commit are ignored
+            // Empty messages or messages before the first commit are ignored
         }
     }
 
