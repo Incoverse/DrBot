@@ -66,7 +66,7 @@ export abstract class DrBotEvent {
             this._filename = path.basename(new Error().stack.split("\n")[2].replace(/.*file:\/\//, "").replace(/:.*/g, "")).replace(/\?.*/, "")
         }
 
-        this._hash = crypto.createHash("md5").update(readFileSync(process.cwd() + "/dist/events/" + this._filename)).digest("hex")
+        this._hash = crypto.createHash("md5").update(readFileSync(process.cwd() + "/dist/events/" + this._filename, "utf-8")).digest("hex")
         
     }
 

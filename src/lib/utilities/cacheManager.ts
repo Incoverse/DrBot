@@ -35,7 +35,7 @@ export default class CacheManager {
         return this.delete(key)
     }
 
-    entries(): MapIterator<[any, any]> {
+    entries(): IterableIterator<[any, any]> {
         const entires = this.cache.entries()
 
         for (const [key, value] of entires) {
@@ -45,7 +45,11 @@ export default class CacheManager {
         }
 
         // only return the key, and value, not the expires
-        return entires.map(([key, value]) => [key, value.value])
+        return (function* () {
+            for (const [key, value] of entires) {
+                yield [key, value.value];
+            }
+        })();
     }
 
     forEach(callbackfn: (value: any, key: any) => void): void {
@@ -59,7 +63,7 @@ export default class CacheManager {
         })
     }
 
-    keys(): MapIterator<any> {
+    keys(): IterableIterator<string> {
         const keys = this.cache.keys()
 
         for (const key of keys) {
