@@ -22,7 +22,7 @@ import { DrBotEvent, DrBotEventTypeSettings, DrBotEventTypes } from "@src/lib/ba
 import { DrBotGlobal } from "@src/interfaces/global.js";
 declare const global: DrBotGlobal;
 
-import ICOMAppealSystem from "@src/lib/utilities/appeal.js";
+import ICOMAppealSystem from "@src/lib/utilities/ICOM/appeal.js";
 import storage from "@src/lib/utilities/storage.js";
 import { getInvolvedUsers, getOffense, getOffenses, getUser, hideSensitiveData, isAppealAdmin, punishmentControl, recalcOffensesAfter, saveUserEmail, sendEmail } from "@src/lib/utilities/misc.js";
 
@@ -30,36 +30,25 @@ import { getInvolvedUsers, getOffense, getOffenses, getUser, hideSensitiveData, 
 
 export default class OnReadySetupAppealSystem extends DrBotEvent {
   protected _type: DrBotEventTypes = "onStart";
-  protected _priority: number = 99999;
+  protected _priority: number = 99998;
   protected _typeSettings: DrBotEventTypeSettings = {};
-
-
-  public async unload(client: Discord.Client, reason: "reload" | "shuttingDown" | null) {
-    if (global.appealSystem?.ready) {
-      global.appealSystem.ws.close(1000, "DrBot is shutting down.");
-    }
-    this._loaded = false;
-    return true;
-  }
 
 
   public async runEvent(client: Discord.Client): Promise<void> {
     try {if (!["Client.<anonymous>", "Timeout._onTimeout"].includes((new Error()).stack.split("\n")[2].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[2].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(this.fileName)}`, "index.js"); } catch (e) {}
 
-    global.appealSystem = new ICOMAppealSystem(process.env.ASID, Buffer.from(process.env.vKey, "base64").toString("utf-8"), true);
+    global.logger.debug("Attaching appeal system to ICOMWS", this.fileName);
 
+    global.appealSystem = new ICOMAppealSystem(global.ICOMWS, true)
 
-    global.appealSystem.onServerInfoQuery = async () => {
-        return {
-            name: client.guilds.cache.get(global.app.config.mainServer).name,
-            id: global.app.config.mainServer,
-            iconURL: client.guilds.cache.get(global.app.config.mainServer).iconURL({extension: "png"}),
-        }
-    }
+    global.appealSystem.awaitReady().then(() => {
+      global.logger.debug("Appeal system ready.", this.fileName);
+    })
 
     global.appealSystem.onCheckMemberQuery = async ({user_id}) => {
         const member = client.guilds.cache.get(global.app.config.mainServer).members.cache.get(user_id);
         const offensesByUser = await storage.findOne("offense", {user_id});
+
         return !!member || !!offensesByUser;
     }
 
@@ -368,14 +357,6 @@ export default class OnReadySetupAppealSystem extends DrBotEvent {
 
       return {
         can_appeal: offense.can_appeal,
-      }
-    }
-
-    global.appealSystem.onBotInfoQuery = async () => {
-      return {
-        name: client.user.displayName,
-        id: client.user.id,
-        icon: client.user.displayAvatarURL({extension: "png"}),
       }
     }
 
@@ -738,7 +719,94 @@ export default class OnReadySetupAppealSystem extends DrBotEvent {
 
     }
 
+    global.appealSystem.onGetEvidenceQuery = async ({offense_id, admin = false}) => {
+      const offense = await getOffense(null, offense_id);
+      if (!offense) {
+        return {
+          error: "OFFENSE_NOT_FOUND",
+          message: "This offense does not exist.",
+        }
+      }
 
+      return {
+        evidence: offense.evidence,
+      }
+    }
+
+    global.appealSystem.onRetractEvidenceRequest = async ({user_id, offense_id, evidence_id}) => {
+      const offense = await getOffense(null, offense_id);
+      if (!offense) {
+        return {
+          error: "OFFENSE_NOT_FOUND",
+          message: "This offense does not exist.",
+        }
+      }
+
+      const evidence = offense.evidence.find((e) => e.id == evidence_id);
+      if (!evidence) {
+        return {
+          error: "EVIDENCE_NOT_FOUND",
+          message: "This evidence does not exist.",
+        }
+      }
+
+      if (evidence.url.startsWith("https://i.imgur.com/")) {
+        const imgurID = evidence.url.split("/").pop().replace(/\..*$/, "");
+        await global.imgur.deleteImage(imgurID);
+      }
+
+      offense.evidence = offense.evidence.filter((e) => e.id !== evidence_id);
+
+      if (offense.appeal) {
+        offense.appeal.transcript.push({
+          type: "evidence",
+          action: "RETRACTED",
+          evidence_id: evidence.id.toString(),
+          timestamp: new Date().toISOString(),
+          user_id: user_id
+        })
+      }
+
+      await storage.replaceOne("offense", {id: offense.id}, offense);
+
+
+      const retractorUser = client.users.cache.get(user_id) ?? await client.users.fetch(user_id)
+      const guild = client.guilds.cache.get(global.app.config.mainServer) ?? await client.guilds.fetch(global.app.config.mainServer);
+      let modLogChannel = guild.channels.cache.find((channel) => channel.name.includes("mod-log") || channel.name.includes("mod-logs") && channel.type == Discord.ChannelType.GuildText)
+      if (modLogChannel) {
+        modLogChannel.fetch().then((channel: Discord.Channel) => {
+
+          client.users.fetch(offense.user_id).then((user) => {
+
+          if (channel instanceof Discord.TextChannel) {
+            (channel as Discord.TextChannel).send({
+              embeds: [
+                new Discord.EmbedBuilder()
+                  .setTitle("Evidence Retracted")
+                  .addFields(
+                    {name: "Offense ID", value: offense.id.toString()},
+                    {name: "Evidence ID", value: evidence.id.toString()},
+                    {name: "Description", value: evidence.description},
+                    {name: "Evidence", value: evidence.url}
+                  )
+                  .setFooter({text:`Retracted by ${retractorUser.username}`, iconURL: retractorUser.displayAvatarURL()})
+                  .setTimestamp(new Date())
+                  .setColor(Discord.Colors.Red)
+                  .setThumbnail(user.displayAvatarURL())
+                  .setAuthor({name: `${user.username} (${user.id})`, iconURL: user.displayAvatarURL()})
+              ]
+            })
+          }
+        })
+      })
+
+      }
+
+
+      return {
+        success: true,
+      }
+    }
 
     
   }

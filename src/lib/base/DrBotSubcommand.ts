@@ -19,6 +19,7 @@ import * as Discord from "discord.js";
 import path from "path";
 import crypto from "crypto";
 import { readFileSync } from "fs";
+import CacheManager from "../utilities/cacheManager.js";
 
 
 export abstract class DrBotSubcommand {
@@ -31,7 +32,7 @@ export abstract class DrBotSubcommand {
     
     private            _filename: string = "";
     public             _loaded: boolean = false;
-    protected          _cacheContainer: Map<Date, any> = new Map();
+    public             cache: CacheManager = new CacheManager(new Map());
     protected          _commandSettings = {
         setupTimeoutMS: DrBotSubcommand.defaultSetupTimeoutMS,
         unloadTimeoutMS: DrBotSubcommand.defaultUnloadTimeoutMS
@@ -71,50 +72,6 @@ export abstract class DrBotSubcommand {
         return true;
     }
 
-    /**
-     * Get the expiration time for a cache entry
-     * @param duration The duration, (e.g. 1ms, 2s, 3m, 4h, 5d, 6w, 7mo, 8y)
-     */
-    protected getExpirationTime(duration: string) {
-        return new Date(Date.now() + this.parseDuration(duration))
-    }
-
-    public async validateCache() {
-        const now = Date.now()
-        const cache = this._cacheContainer.entries()
-        for (let [key] of cache) {
-            if (!(key instanceof Date)) {
-                let oldKey = key
-                key = new Date(key)
-                this._cacheContainer.set(key, this._cacheContainer.get(oldKey))
-                this._cacheContainer.delete(oldKey)
-            }
-            if (key.getTime() < now) {
-                this._cacheContainer.delete(key)
-            }
-        }
-        return true
-    }
-
-    private parseDuration(durationStr) {
-        const units = {
-            'ms': 1,
-            's': 1000,
-            'm': 60 * 1000,
-            'h': 60 * 60 * 1000,
-            'd': 24 * 60 * 60 * 1000,
-            'w': 7 * 24 * 60 * 60 * 1000,
-            'mo': 31 * 24 * 60 * 60 * 1000,
-            'y': 365 * 24 * 60 * 60 * 1000
-        };
-        
-        const time = parseInt(durationStr.replace(/[a-zA-Z]/g,""))
-        const unit = durationStr.match(/[a-zA-Z]/g).join("")  
-      
-        const duration = time * units[unit];
-        return duration;
-    }
-
     public get fileName() {
         return this._filename
     }
@@ -135,13 +92,6 @@ export abstract class DrBotSubcommand {
             this.constructor.name +
             " - " + this._filename
         )
-    }
-
-    public get cache() {
-        return this._cacheContainer
-    }
-    public set cache(value) {
-        this._cacheContainer = value
     }
 
 }

@@ -20,9 +20,12 @@ import { EventEmitter } from "events";
 import { AppInterface } from "./appInterface.js";
 import { DrBotSubcommand } from "@src/lib/base/DrBotSubcommand.ts";
 import { CronJob } from "cron";
-import ICOMAppealSystem from "@src/lib/utilities/appeal.ts";
+import ICOMAppealSystem from "@src/lib/utilities/ICOM/appeal.ts";
+import ICOMWS from "@src/lib/utilities/ICOM/icom.ts";
+import ICOMOAuthSystem from "@src/lib/utilities/ICOM/oauth.ts";
 
 interface DrBotGlobal extends NodeJS.Global {
+  global: import("/Users/inimi/Desktop/DrBot/src/lib/utilities/ICOM/appeal").default;
   global: EventEmitter;
   identifier: any;
   app: AppInterface;
@@ -66,7 +69,9 @@ interface DrBotGlobal extends NodeJS.Global {
     FAILED: number,
     NOT_AVAILABLE: number,
   }
+  ICOMWS: ICOMWS;
   appealSystem: ICOMAppealSystem;
+  oauthSystem: ICOMOAuthSystem;
   status: {
     [key: string]: boolean
   }
@@ -140,6 +145,7 @@ interface DrBotGlobal extends NodeJS.Global {
       maxPlayers: number;
     }
   };
+    imgur: ImgurClient;
 }
 
 interface LoggedEventEmitter extends EventEmitter {

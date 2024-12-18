@@ -7,7 +7,9 @@ interface Offense {
     appeal: {
         status: "OPEN" | "APPROVED" | "DENIED" | "AYR"
         transcript: {
-            type: "message" | "status",
+            type: "message" | "status" | "evidence",
+            evidence_id?: string,
+            action?: "SUBMITTED" | "RETRACTED",
             message?: string,
             status?: "OPEN" | "APPROVED" | "DENIED",
             timestamp: string,
@@ -21,6 +23,14 @@ interface Offense {
             }
         }
     } | null,
+    evidence: {
+        id: string,
+        type: "link" | "image",
+        description: string,
+        url: string,
+        timestamp: string,
+        user_id: string
+    }[],
     can_appeal: boolean,
     violated_at: string
     ends_at: string | null,

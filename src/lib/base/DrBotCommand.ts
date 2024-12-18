@@ -22,6 +22,7 @@ import crypto from "crypto";
 import { readFileSync, existsSync, readdirSync } from "fs";
 import { DrBotSubcommand } from "./DrBotSubcommand.js";
 import { DrBotGlobal } from "@src/interfaces/global.js";
+import CacheManager from "../utilities/cacheManager.js";
 
 declare const global: DrBotGlobal;
 
@@ -36,7 +37,7 @@ export abstract class DrBotCommand {
     private            _filename: string = "";
     private            _fullPath: string = "";
     public             _loaded: boolean = false;
-    protected          _cacheContainer: Map<Date, any> = new Map();
+    public             cache: CacheManager = new CacheManager(new Map());
     protected          _commandSettings: DrBotEvCoSettings = {
         devOnly: false,
         mainOnly: false,
@@ -107,31 +108,6 @@ export abstract class DrBotCommand {
         return true;
     }
 
-    /**
-     * Get the expiration time for a cache entry
-     * @param duration The duration, (e.g. 1ms, 2s, 3m, 4h, 5d, 6w, 7mo, 8y)
-     */
-    protected getExpirationTime(duration: string) {
-        return new Date(Date.now() + this.parseDuration(duration))
-    }
-
-    public async validateCache() {
-        const now = Date.now()
-        const cache = this._cacheContainer.entries()
-        for (let [key] of cache) {
-            if (!(key instanceof Date)) {
-                let oldKey = key
-                key = new Date(key)
-                this._cacheContainer.set(key, this._cacheContainer.get(oldKey))
-                this._cacheContainer.delete(oldKey)
-            }
-            if (key.getTime() < now) {
-                this._cacheContainer.delete(key)
-            }
-        }
-        return true
-    }
-
     private parseDuration(durationStr) {
         const units = {
             'ms': 1,
@@ -167,20 +143,11 @@ export abstract class DrBotCommand {
     }
     
     public valueOf() {
-
-
         return (
             "C: " +
             this.constructor.name +
             " - " + this._filename
         )
-    }
-
-    public get cache() {
-        return this._cacheContainer
-    }
-    public set cache(value) {
-        this._cacheContainer = value
     }
 
 }

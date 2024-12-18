@@ -18,9 +18,10 @@
 import { DrBotEvent, DrBotEventTypeSettings, DrBotEventTypes } from "@src/lib/base/DrBotEvent.js";
 import * as Discord from "discord.js";
 import chalk from "chalk";
-import storage, { returnFileName, setupFiles, setupMongo } from "@src/lib/utilities/storage.js";
+import storage, {setupFiles, setupMongo } from "@src/lib/utilities/storage.js";
 
 import { DrBotGlobal } from "@src/interfaces/global.js";
+import { returnFileName } from "@src/lib/utilities/misc.js";
 declare const global: DrBotGlobal;
 
 export default class OnReadySetupDB extends DrBotEvent {
@@ -29,7 +30,7 @@ export default class OnReadySetupDB extends DrBotEvent {
   protected _typeSettings: DrBotEventTypeSettings = {};
 
   public async runEvent(client: Discord.Client): Promise<void> {
-    try {if (!["Client.<anonymous>", "Timeout._onTimeout"].includes((new Error()).stack.split("\n")[2].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[2].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(returnFileName())}`, "index.js"); } catch (e) {}
+    try {if (!["Client.<anonymous>", "Timeout._onTimeout"].includes((new Error()).stack.split("\n")[2].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[2].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(returnFileName(import.meta.url))}`, "index.js"); } catch (e) {}
     
     storage.method == "file" ? await setupFiles() : await setupMongo();
   }
