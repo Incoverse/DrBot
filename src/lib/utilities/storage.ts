@@ -300,20 +300,34 @@ async function replace(dataType: DataType, filter: object, data: object) {
 export async function setupMongo() {
     if (method == "file") return false
 
-    const requiredCollections = [
-        "USERDATA_" + global.app.config.mainServer,
-        "SERVERDATA_" + global.app.config.mainServer,
-        "OFFENSEDATA_" + global.app.config.mainServer,
-        "TICKETDATA_" + global.app.config.mainServer
-    ]
+    const requiredCollectionsMap = new Map([
+        [`USERDATA_${global.app.config.mainServer}`, null],
+        [`SERVERDATA_${global.app.config.mainServer}`, {
+                "rules": [],
+                "games": [],
+                "data": {
+                  "ticketingSystem": {
+                    "enabled": false,
+                    "makeATicketChannel": null,
+                    "ticketsCategory": null,
+                    "ticketCount": 0
+                  }
+              }   
+        }],
+        [`OFFENSEDATA_${global.app.config.mainServer}`, null],
+        [`TICKETDATA_${global.app.config.mainServer}`, null]
+    ]);
 
     try {
         const database = connectionClient.db(global.app.config.development ? "DrBot_DEVELOPMENT" : "DrBot");
         const collections = (await database.listCollections().toArray()).map((c) => c.name);
-        for (const collection of requiredCollections) {
-            if (!collections.includes(collection)) {
-                await database.createCollection(collection)
-                global.logger.debug(`Successfully created a missing collection in the database: ${chalk.yellow(collection)}`,returnFileName(import.meta.url));
+        for (const [collectionName, defaultEntry] of requiredCollectionsMap.entries()) {
+            if (!collections.includes(collectionName)) {
+                await database.createCollection(collectionName)
+                if (defaultEntry) {
+                    await database.collection(collectionName).insertOne(defaultEntry)
+                }
+                global.logger.debug(`Successfully created a missing collection in the database: ${chalk.yellow(collectionName)}`,returnFileName(import.meta.url));
             }
         }
     } catch (error) {
@@ -321,10 +335,10 @@ export async function setupMongo() {
         return false
     }
 
-    dataLocations.userdata =    "USERDATA_"    + global.app.config.mainServer
-    dataLocations.serverdata =  "SERVERDATA_"  + global.app.config.mainServer
-    dataLocations.offensedata = "OFFENSEDATA_" + global.app.config.mainServer
-    dataLocations.ticketdata = "TICKETDATA_" + global.app.config.mainServer
+    dataLocations.userdata =    `USERDATA_${global.app.config.mainServer}`
+    dataLocations.serverdata =  `SERVERDATA_${global.app.config.mainServer}`
+    dataLocations.offensedata = `OFFENSEDATA_${global.app.config.mainServer}`
+    dataLocations.ticketdata =  `TICKETDATA_${global.app.config.mainServer}`
     
 }
 
