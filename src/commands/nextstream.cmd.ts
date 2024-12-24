@@ -113,7 +113,7 @@ export default class NextStream extends DrBotCommand {
         })
 
       this.cache.set("schedule", schedule, new Date(Date.now() + 1000 * 60 * 5))
-    }
+    } else schedule.cached = true;
 
 
 
@@ -132,16 +132,23 @@ export default class NextStream extends DrBotCommand {
     })
 
     if (segments.length === 0) {
+      let embed = new Discord.EmbedBuilder()
+        .setColor("NotQuiteBlack")
+        .setTitle("No Streams Scheduled")
+        .setDescription("There are no streams scheduled for '" + this.streamer.display_name + "'")
+        .setAuthor({
+          name: interaction.user.tag,
+          iconURL: interaction.user.displayAvatarURL()
+        })
+
+      if (schedule.cached) {
+        embed = embed.setFooter({
+          text: "This data was fetched from the cache."
+        })
+      }
       return await interaction.reply({
         embeds: [
-          new Discord.EmbedBuilder()
-            .setColor("NotQuiteBlack")
-            .setTitle("No Streams Scheduled")
-            .setDescription("There are no streams scheduled for '" + this.streamer.display_name + "'")
-            .setAuthor({
-              name: interaction.user.tag,
-              iconURL: interaction.user.displayAvatarURL()
-            })
+          embed
         ],
         ephemeral: true
       })
@@ -149,20 +156,28 @@ export default class NextStream extends DrBotCommand {
 
     let nextStream = Math.floor(new Date(segments[0].start_time).getTime()/1000);
 
+    let embed = new Discord.EmbedBuilder()
+      .setColor("NotQuiteBlack")
+      .setTitle("Next Scheduled Stream for '" + this.streamer.display_name + "'")
+      .addFields(
+          { name: 'Title', value: segments[0].title },
+          { name: 'Category', value: segments[0].category.name},
+          { name: 'Stream Start', value: `<t:${nextStream}:F> (<t:${nextStream}:R>)`},
+      )
+      .setAuthor({
+        name: interaction.user.tag,
+        iconURL: interaction.user.displayAvatarURL()
+      })
+
+    if (schedule.cached) {
+      embed = embed.setFooter({
+        text: "This data was fetched from the cache."
+      })
+    }
+
     return await interaction.reply({
         embeds: [
-        new Discord.EmbedBuilder()
-            .setColor("NotQuiteBlack")
-            .setTitle("Next Scheduled Stream for '" + this.streamer.display_name + "'")
-            .addFields(
-                { name: 'Title', value: segments[0].title },
-                { name: 'Category', value: segments[0].category.name},
-                { name: 'Stream Start', value: `<t:${nextStream}:F> (<t:${nextStream}:R>)`},
-            )
-            .setAuthor({
-              name: interaction.user.tag,
-              iconURL: interaction.user.displayAvatarURL()
-            })
+          embed
         ],
         ephemeral: true
     })    
