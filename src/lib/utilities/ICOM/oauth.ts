@@ -32,7 +32,6 @@ export default class ICOMOAuthSystem {
     public events: EventEmitter = new EventEmitter();
 
     public ready = false;
-    private logger = (...args)=>global.logger.debug(args, "OAUTH") ?? console.log
     private callbackPath: string;
     constructor(ICOMWS: ICOMWS, debug = false) {
         this.debug = debug;

@@ -115,8 +115,18 @@ export default class NextStream extends DrBotCommand {
       this.cache.set("schedule", schedule, new Date(Date.now() + 1000 * 60 * 5))
     }
 
+
+
+    const vacationData:{
+        start_time: string,
+        end_time: string
+   } | null = schedule.vacation
+
     const segments = schedule.segments.filter((segment) => {
-      return segment.canceled_until === null && !segment.vacation
+      return segment.canceled_until === null && 
+        (vacationData === null || 
+          (new Date(segment.start_time) < new Date(vacationData.start_time) || new Date(segment.start_time) > new Date(vacationData.end_time))
+        ) 
     }).filter((segment) => {
       return new Date(segment.start_time) > new Date(Date.now())
     })
