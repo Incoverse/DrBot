@@ -76,11 +76,19 @@ export abstract class DrBotEvent {
     }
 
     public async runEvent(...args: any[]): Promise<void> {
-        if (this._type == "runEvery") {
-            try {if (!["Client.<anonymous>", "Timeout._onTimeout", "process.processTicksAndRejections"].includes((new Error()).stack.split("\n")[4].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[4].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(this.fileName)}`, "index.js"); } catch (e) {}
-        } else {
-            try {if (!["Client.<anonymous>", "Timeout._onTimeout"].includes((new Error()).stack.split("\n")[3].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[3].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(this.fileName)}`, "index.js"); } catch (e) {}
+        const callExclusions = {
+            runEvery: ["Client.<anonymous>", "Timeout._onTimeout", "process.processTicksAndRejections"],
+            onStart: ["Client.<anonymous>", "Timeout._onTimeout"],
+            discordEvent: ["Client.<anonymous>", "Timeout._onTimeout", "Client.listenerFunction"]
         }
+
+        try {
+            const lineIndex = this._type == "runEvery" ? 4 : 3
+            const caller = (new Error()).stack.split("\n")[lineIndex].trim().split(" ")[1]
+            if (!(callExclusions[this._type] ?? []).includes(caller)) {
+                global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold(`FORCED by "${caller}"`)})' event: ${chalk.blueBright(this.fileName)}`, "index.js");
+            }
+        } catch (e) {}
     }
 
 
