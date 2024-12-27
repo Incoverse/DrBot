@@ -24,13 +24,6 @@ import { CronJob } from "cron";
 
 declare const global: DrBotGlobal;
 export default class NextStream extends DrBotCommand {
-  
-  private twitchInfo: {
-    access_token: string,
-    expires_in: number
-  } = null;
-  private refreshInterval: CronJob | null = null;
-
   private streamer: {
     id: string,
     login: string,
@@ -143,7 +136,12 @@ export default class NextStream extends DrBotCommand {
           iconURL: interaction.user.displayAvatarURL()
         })
 
-      if (schedule.cached) {
+      if (vacationData) {
+        embed = embed.setFooter({
+          text: `Streamer is on vacation until ${new Date(vacationData.end_time).toUTCString()}`,
+          iconURL: "https://emojicdn.elk.sh/🏖️"
+        })
+      } else if (schedule.cached) {
         embed = embed.setFooter({
           text: "This data was fetched from the cache."
         })
@@ -156,30 +154,13 @@ export default class NextStream extends DrBotCommand {
       })
     }
 
-    let nextStreamCategoryName = segments[0].category.name.toLowerCase().replace(/\s/g, "-");
-
-    if (!this.cache.has(`category-${nextStreamCategoryName}`)) {
-      let category = await axios.get(`https://api.twitch.tv/helix/search/categories?query=${segments[0].category.name}`, {
-        headers: {
-          'Client-Id': process.env.TWITCH_CLIENT_ID,
-          'Authorization': `Bearer ${global.twitchAccessToken}`
-        }
-      }).then((response) => {
-        return response.data.data[0];
-      })
-
-      this.cache.set(`category-${nextStreamCategoryName}`, category, new Date(Date.now() + 1000 * 60 * 60 * 24 * 7))
-
-      segments[0].category = category;
-    } else {
-      segments[0].category = this.cache.get(`category-${nextStreamCategoryName}`);
-    }
-
     let nextStream = Math.floor(new Date(segments[0].start_time).getTime()/1000);
+
+    const boxArtURL = `https://static-cdn.jtvnw.net/ttv-boxart/${segments[0].category.id}-520x720.jpg`
 
     let embed = new Discord.EmbedBuilder()
       .setColor("NotQuiteBlack")
-      .setTitle("Next Scheduled Stream for '" + this.streamer.display_name + "'")
+      .setTitle(this.streamer.display_name + (this.streamer.display_name.endsWith("s") ? "'" : "'s") + " next scheduled stream")
       .addFields(
           { name: 'Title', value: segments[0].title },
           { name: 'Category', value: segments[0].category.name},
@@ -189,9 +170,14 @@ export default class NextStream extends DrBotCommand {
         name: interaction.user.tag,
         iconURL: interaction.user.displayAvatarURL()
       })
-      .setThumbnail(segments[0].category.box_art_url)
+      .setThumbnail(boxArtURL)
 
-    if (schedule.cached) {
+    if (vacationData) {
+      embed = embed.setFooter({
+        text: `Streamer is on vacation until ${new Date(vacationData.end_time).toUTCString()}`,
+        iconURL: "https://emojicdn.elk.sh/🏖️"
+      })
+    } else if (schedule.cached) {
       embed = embed.setFooter({
         text: "This data was fetched from the cache."
       })
