@@ -62,6 +62,7 @@ interface DrBotGlobal extends NodeJS.Global {
   };
   subcommands: Map<string, any>;
   mongoStatus: number;
+  twitchAccessToken: string;
   mongoStatuses: {
     RUNNING: number ,
     RESTARTING: number,

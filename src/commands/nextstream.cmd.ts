@@ -42,6 +42,14 @@ export default class NextStream extends DrBotCommand {
 
   public async setup(client: Discord.Client, reason: "reload" | "startup" | "duringRun" | null): Promise<boolean> {
 
+    if (!global.moduleInfo.events.includes("OnReadyInitTwitchCreds")) {
+      global.logger.error(
+        "The nextstream command requires the OnReadyInitTwitchCreds event to be present!",
+        this.fileName
+      );
+      return false;
+    }
+
     if (!process.env.TWITCH_CLIENT_ID || !process.env.TWITCH_CLIENT_SECRET) {
       global.logger.debugWarn("Twitch client ID or secret not set. Please set them in the environment variables.", this.fileName);
       return false;
@@ -52,62 +60,56 @@ export default class NextStream extends DrBotCommand {
       return false;
     }
 
-    await this.getAccessToken();
-    await this.createRefreshInterval(this.twitchInfo.expires_in);
-
-    this.streamer = await axios.get(`https://api.twitch.tv/helix/users?login=${global.app.config.nsStreamer}`, {
-        headers: {
-            'Client-Id': process.env.TWITCH_CLIENT_ID,
-            'Authorization': `Bearer ${this.twitchInfo.access_token}`
-        }
-    }).then((response) => {
-        return response.data.data[0];
-    })
+    if (!global.twitchAccessToken) {
+      global.communicationChannel.once("TwitchTokenFetched:ORITC", async () => {
+        await this.fetchStreamer();
+      })
+    } else {
+      await this.fetchStreamer();
+    }
     return await super.setup(client, reason);
 
   }
 
-  private async createRefreshInterval(exp: number) {
-    if (this.refreshInterval) this.refreshInterval.stop();
-
-    this.refreshInterval = new CronJob(new Date(Date.now() + (exp - 60) * 1000), async () => {
-      await this.getAccessToken();
-      await this.createRefreshInterval(this.twitchInfo.expires_in);
+  private async fetchStreamer() {
+    this.streamer = await axios.get(`https://api.twitch.tv/helix/users?login=${global.app.config.nsStreamer}`, {
+      headers: {
+          'Client-Id': process.env.TWITCH_CLIENT_ID,
+          'Authorization': `Bearer ${global.twitchAccessToken}`
+      }
+    }).then((response) => {
+        return response.data.data[0];
     })
-    
-    this.refreshInterval.start();
-  }
 
-  private async getAccessToken() {
-    try {
-      const response = await axios.post('https://id.twitch.tv/oauth2/token', null, {
-        params: {
-          client_id: process.env.TWITCH_CLIENT_ID,
-          client_secret: process.env.TWITCH_CLIENT_SECRET,
-          grant_type: 'client_credentials'
-        },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      });
-
-      global.logger.debug("Access token fetched. Expires on", response.data.expires_in, this.fileName);
-      this.twitchInfo = response.data;
-    } catch (error) {
-        global.logger.debugError('Error fetching access token:', this.twitchInfo, this.fileName);
-        return false
-    }
-    return this.twitchInfo
+    return this.streamer;
   }
 
   public async runCommand(interaction: Discord.CommandInteraction) {
+
+    if (!this.streamer) {
+      return await interaction.reply({
+        embeds: [
+          new Discord.EmbedBuilder()
+            .setColor("Red")
+            .setTitle(`/${this.slashCommand.name} is setting up...`)
+            .setDescription(
+              `The ${this.slashCommand.name} command is still setting up. Please try again in a few seconds.`
+            )
+            .setAuthor({
+              name: interaction.user.tag,
+              iconURL: interaction.user.displayAvatarURL()
+            })
+        ],
+        ephemeral: true
+      })
+    }
 
     let schedule = this.cache.get("schedule");
     if (!schedule) {
       schedule = await axios.get(`https://api.twitch.tv/helix/schedule?broadcaster_id=${this.streamer.id}`, {
         headers: {
           'Client-Id': process.env.TWITCH_CLIENT_ID,
-          'Authorization': `Bearer ${this.twitchInfo.access_token}`
+          'Authorization': `Bearer ${global.twitchAccessToken}`
         }}).then((response) => {
           return response.data.data;
         })
@@ -117,10 +119,10 @@ export default class NextStream extends DrBotCommand {
 
 
 
-    const vacationData:{
-        start_time: string,
-        end_time: string
-   } | null = schedule.vacation
+    const vacationData: {
+      start_time: string,
+      end_time: string
+    } | null = schedule.vacation
 
     const segments = schedule.segments.filter((segment) => {
       return segment.canceled_until === null && 
@@ -154,6 +156,25 @@ export default class NextStream extends DrBotCommand {
       })
     }
 
+    let nextStreamCategoryName = segments[0].category.name.toLowerCase().replace(/\s/g, "-");
+
+    if (!this.cache.has(`category-${nextStreamCategoryName}`)) {
+      let category = await axios.get(`https://api.twitch.tv/helix/search/categories?query=${segments[0].category.name}`, {
+        headers: {
+          'Client-Id': process.env.TWITCH_CLIENT_ID,
+          'Authorization': `Bearer ${global.twitchAccessToken}`
+        }
+      }).then((response) => {
+        return response.data.data[0];
+      })
+
+      this.cache.set(`category-${nextStreamCategoryName}`, category, new Date(Date.now() + 1000 * 60 * 60 * 24 * 7))
+
+      segments[0].category = category;
+    } else {
+      segments[0].category = this.cache.get(`category-${nextStreamCategoryName}`);
+    }
+
     let nextStream = Math.floor(new Date(segments[0].start_time).getTime()/1000);
 
     let embed = new Discord.EmbedBuilder()
@@ -168,6 +189,7 @@ export default class NextStream extends DrBotCommand {
         name: interaction.user.tag,
         iconURL: interaction.user.displayAvatarURL()
       })
+      .setThumbnail(segments[0].category.box_art_url)
 
     if (schedule.cached) {
       embed = embed.setFooter({

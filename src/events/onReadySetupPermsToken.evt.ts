@@ -47,7 +47,7 @@ export default class OnReadySetupPermsToken extends DrBotEvent {
   }
 
   public async runEvent(client: Discord.Client): Promise<void> {
-  try {if (!["Client.<anonymous>", "Timeout._onTimeout"].includes((new Error()).stack.split("\n")[2].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[2].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(this.fileName)}`, "index.js"); } catch (e) {}
+    super.runEvent(client);
 
 
   async function refreshToken() {

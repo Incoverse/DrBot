@@ -41,7 +41,7 @@ export default class OnReadyLIVEWarning extends DrBotEvent {
   } 
 
   public async runEvent(client: Discord.Client): Promise<void> {
-    try {if (!["Client.<anonymous>", "Timeout._onTimeout"].includes((new Error()).stack.split("\n")[2].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[2].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(this.fileName)}`, "index.js"); } catch (e) {}
+    super.runEvent(client);
 
     listeners.onStateUpdate = async (oldState: Discord.VoiceState, newState: Discord.VoiceState) => {
       if (oldState?.channel?.id !== newState?.channel?.id && newState?.channel !== null) {

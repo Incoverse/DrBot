@@ -38,6 +38,8 @@ export default class OnMessageEval extends DrBotEvent {
   protected _priority: number = 999
 
   public async runEvent(message: Discord.Message): Promise<void> {
+    super.runEvent(message);
+
     if (message.guildId != global.app.config.mainServer) return;
     const edition = global.app.config.development ? "DEV" : "PROD";
     if (message.content.startsWith(".DrBot-EVAL ") || message.content.startsWith(`.DrBot-EVAL-${edition} `) || message.content.startsWith(`.DrBot-EVAL-${global.identifier} `)) {
