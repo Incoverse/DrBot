@@ -30,8 +30,8 @@ export default class OnReadySetupDB extends DrBotEvent {
   protected _typeSettings: DrBotEventTypeSettings = {};
 
   public async runEvent(client: Discord.Client): Promise<void> {
-    try {if (!["Client.<anonymous>", "Timeout._onTimeout"].includes((new Error()).stack.split("\n")[2].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[2].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(returnFileName(import.meta.url))}`, "index.js"); } catch (e) {}
-    
+    super.runEvent(client);
+        
     storage.method == "file" ? await setupFiles() : await setupMongo();
   }
 }

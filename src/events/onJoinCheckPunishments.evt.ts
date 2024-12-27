@@ -33,6 +33,7 @@ export default class onJoinCheckPunishments extends DrBotEvent {
   public async runEvent(
     member: Discord.GuildMember
   ): Promise<void> {
+    super.runEvent(member);
     if (member.user.bot) return;
     if (member.guild.id !== global.app.config.mainServer) return;
 

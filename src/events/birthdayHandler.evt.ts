@@ -47,7 +47,7 @@ export default class BirthdayHandler extends DrBotEvent {
     return true
   }
   public async runEvent(client: Discord.Client) {
-    try {if (!["Client.<anonymous>", "Timeout._onTimeout"].includes((new Error()).stack.split("\n")[2].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[2].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(this.fileName)}`, "index.js"); } catch (e) {}
+    super.runEvent(client);    
     this._running = true;
     // -----------
     for (let birthday of JSON.parse(JSON.stringify(global.birthdays))) {

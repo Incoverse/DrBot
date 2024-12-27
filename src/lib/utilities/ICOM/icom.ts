@@ -48,7 +48,7 @@ export default class ICOMWS {
 
         this.intentions = intentions;
 
-        if (this.debug) this.logger(`Attempting to connect to ICOM system with UUID ${UUID} and intentions ${intentions.join(", ")}`);
+        if (this.debug) this.logger(`Attempting to connect to ICOM system with UUID ${UUID} with intentions: ${intentions.join(", ")}`);
         this.ws = new WebSocket(`${connectionURL}${UUID}`);
         this.ws.on("open", this.onWebsocketConnected.bind(this));
         this.ws.on("error", (ev: Event) => {

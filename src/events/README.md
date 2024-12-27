@@ -25,9 +25,16 @@ export default class EventName extends DrBotEvent {
     // It can be one of the following:
     // - runImmediately: Whether the event should run immediately (runEvery)
     // - ms: The amount of time in milliseconds to wait before running the event (runEvery)
+    // - jitter: The randomness for the interval. This is optional. (runEvery)
+    // - jitter.min: Minimum jitter milliseconds, can be negative. Default is 0ms (runEvery)
+    // - jitter.max: Maximum jitter milliseconds (runEvery)
     // - listenerKey: The listener key for the event (discordEvent)
     protected _typeSettings: DrBotEventTypeSettings = {
         ms: 24 * 60 * 60 * 1000,
+        jitter: {
+            min: -5000,
+            max: 5000
+        },
         runImmediately: true,
         listenerKey: Events.MessageCreate
     }

@@ -20,9 +20,11 @@ import path from "path";
 import prettyMilliseconds from "pretty-ms";
 import crypto from "crypto";
 import { readFileSync } from "fs";
+import CacheManager from "../utilities/cacheManager.js";
+import chalk from "chalk";
 
 export type DrBotEventTypes = "discordEvent" | "onStart" | "runEvery"
-export type DrBotEventTypeSettings = {runImmediately?: boolean, ms?: number, listenerKey?: Discord.Events}
+export type DrBotEventTypeSettings = {runImmediately?: boolean, ms?: number, jitter?: {min?:number, max:number}, listenerKey?: Discord.Events}
 
 export abstract class DrBotEvent {
 
@@ -40,7 +42,7 @@ export abstract class DrBotEvent {
     }
     protected           _running: boolean = false;
     private            _filename: string = "";
-    protected          _cacheContainer: Map<Date, any> = new Map();
+    public             cache: CacheManager = new CacheManager(new Map());
     private            _hash: string = ""; //! Used to detect changes during reloads 
     /**
      * Only used for onStart events, whether the event can be reloaded or not
@@ -53,6 +55,9 @@ export abstract class DrBotEvent {
      * @type {Object}
      * @param {boolean} runImmediately (runEvery) Whether the event should run immediately
      * @param {number} ms (runEvery) The amount of time in milliseconds to wait before running the event
+     * @param {Object} jitter (runEvery) Interval jitter settings (irregularity in the interval time)
+     * @param {number} jitter.min (runEvery) Optional - The minimum amount of time to add to the interval, default 0
+     * @param {number} jitter.max (runEvery) The maximum amount of time to add to the interval 
      * @param {Discord.Events} listenerKey (discordEvent) The listener key for the event
      */
     protected abstract _typeSettings: DrBotEventTypeSettings;
@@ -70,9 +75,15 @@ export abstract class DrBotEvent {
         
     }
 
-    public abstract runEvent(...args: any[]): Promise<void>;
+    public async runEvent(...args: any[]): Promise<void> {
+        if (this._type == "runEvery") {
+            try {if (!["Client.<anonymous>", "Timeout._onTimeout", "process.processTicksAndRejections"].includes((new Error()).stack.split("\n")[4].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[4].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(this.fileName)}`, "index.js"); } catch (e) {}
+        } else {
+            try {if (!["Client.<anonymous>", "Timeout._onTimeout"].includes((new Error()).stack.split("\n")[3].trim().split(" ")[1])) global.logger.debug(`Running '${chalk.yellowBright(this._type)} (${chalk.redBright.bold("FORCED by \""+(new Error()).stack.split("\n")[3].trim().split(" ")[1]+"\"")})' event: ${chalk.blueBright(this.fileName)}`, "index.js"); } catch (e) {}
+        }
+    }
 
-    
+
 
     public get canBeReloaded() {
         return this.type == "onStart" ? this._canBeReloaded : true
@@ -90,6 +101,10 @@ export abstract class DrBotEvent {
         if (this._type != "runEvery") throw new Error("ms is only available for runEvery events");
         if (!this._typeSettings.ms) throw new Error("ms is not defined for this event");
         return this._typeSettings?.ms
+    }
+    public get jitter() {
+        if (this._type != "runEvery") throw new Error("jitter is only available for runEvery events");
+        return this._typeSettings?.jitter ?? {min: 0, max: 0}
     }
     public get runImmediately() {
         if (this._type != "runEvery") throw new Error("runImmediately is only available for runEvery events");
@@ -112,51 +127,6 @@ export abstract class DrBotEvent {
     public async unload(client: Discord.Client, reason: "reload"|"shuttingDown"|null): Promise<boolean> {return true}
 
 
-    /**
-     * Get the expiration time for a cache entry
-     * @param duration The duration, (e.g. 1ms, 2s, 3m, 4h, 5d, 6w, 7mo, 8y)
-     */
-    protected getExpirationTime(duration: string) {
-        return new Date(Date.now() + this.parseDuration(duration))
-    }
-    
-    public async validateCache() {
-        const now = Date.now()
-        const cache = this._cacheContainer.entries()
-        for (const [key] of cache) {
-            if (key.getTime() < now) {
-                this._cacheContainer.delete(key)
-            }
-        }
-        return true
-    }
-
-    private parseDuration(durationStr) {
-        const units = {
-            'ms': 1,
-            's': 1000,
-            'm': 60 * 1000,
-            'h': 60 * 60 * 1000,
-            'd': 24 * 60 * 60 * 1000,
-            'w': 7 * 24 * 60 * 60 * 1000,
-            'mo': 1000 * 60 * 60 * 24 * 31,
-            'y': 365 * 24 * 60 * 60 * 1000
-        };
-        
-        const time = parseInt(durationStr.replace(/[a-zA-Z]/g,""))
-        const unit = durationStr.match(/[a-zA-Z]/g).join("")  
-      
-        const duration = time * units[unit];
-        return duration;
-    }
-
-    public get cache() {
-        return this._cacheContainer
-    }
-    public set cache(value) {
-        this._cacheContainer = value
-    }
-
     public toString() {
         return this.valueOf()
     }
@@ -168,7 +138,7 @@ export abstract class DrBotEvent {
                 message = "onStart"
                 break;
             case "runEvery":
-                message = "runEvery - " + prettyMilliseconds(this._typeSettings?.ms||0, {compact: true})
+                message = "runEvery - " + prettyMilliseconds(this._typeSettings?.ms||0, {compact: true}) + " - J" + this.jitter.min + ":" + this.jitter.max
                 break;
             case "discordEvent":
                 message = "discordEvent - " + this.listenerKey

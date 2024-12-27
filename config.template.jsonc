@@ -179,6 +179,67 @@
   //! If you do not want to use this command, set this to null.
   "nsStreamer": "your_twitch_username",
 
+  //? These are the statuses that DrBot will periodically change between. (Every 2h -/+ 30m, adjustable in /src/events/changeDiscordStatus.evt.ts)
+  //? If the status (case-insensitive) starts with "playing", "streaming", "listening", or "watching", DrBot will set the status accordingly. If none of these are present, DrBot will set your status as a custom status.
+  //* If this is set to an empty array, DrBot will not change statuses, and will perserve the status that was set when DrBot started.
+  //! Variables:
+  //!   - {members} - The number of members in the server
+  //!   - {commands} - The number of commands DrBot has
+  //!   - {events} - The number of events DrBot has
+  //!   - {uptime} - The uptime of DrBot (5d 1h 2m 3s)
+  //!   - {uptime:days} - The number of days DrBot has been up (->5<-d 1h 2m 3s)
+  //!   - {uptime:hours} - The number of hours DrBot has been up (5d ->1<-h 2m 3s)
+  //!   - {uptime:total-hours} - The number of total hours DrBot has been up (5d 1h 2m 3s -> ->121<-h)
+  //!   - {uptime:minutes} - The number of minutes DrBot has been up (5d 1h ->2<-m 3s)
+  //!   - {uptime:total-minutes} - The number of total minutes DrBot has been up (5d 1h 2m 3s -> ->7263<-m)
+  //!   - {uptime:seconds} - The number of seconds DrBot has been up (5d 1h 2m ->3<-s)
+  //!   - {uptime:total-seconds} - The number of total seconds DrBot has been up (5d 1h 2m 3s -> ->435123<-s)
+  //!   - {version} - The version of DrBot
+  //!   - {twitch:vods:<streamer>} - The number of vods that the Twitch streamer has (only works if credentials are provided in .env)
+  //!   - {twitch:followers:<streamer>} - The number of followers that the Twitch streamer has (only works if credentials are provided in .env)
+  //! - Grammatical fixes:
+  //!   - {members[singular:plural]} - Singular if members = 1, plural otherwise
+  //!   - {commands[singular:plural]} - Singular if commands = 1, plural otherwise
+  //!   - {events[singular:plural]} - Singular if events = 1, plural otherwise
+  //!   - {uptime:days[singular:plural]} - Singular if days = 1, plural otherwise
+  //!   - {uptime:hours[singular:plural]} - Singular if hours = 1, plural otherwise
+  //!   - {uptime:total-hours[singular:plural]} - Singular if total-hours = 1, plural otherwise
+  //!   - {uptime:minutes[singular:plural]} - Singular if minutes = 1, plural otherwise
+  //!   - {uptime:total-minutes[singular:plural]} - Singular if total-minutes = 1, plural otherwise
+  //!   - {uptime:seconds[singular:plural]} - Singular if seconds = 1, plural otherwise
+  //!   - {uptime:total-seconds[singular:plural]} - Singular if total-seconds = 1, plural otherwise
+  //!   - {twitch:vods:<streamer>[singular:plural]} - Singular if vods = 1, plural otherwise
+  //!   - {twitch:followers:<streamer>[singular:plural]} - Singular if followers = 1, plural otherwise
+  
+  //? Object properties: (you can specify a string too for convenience)
+  //?   - "text" - The text that will be displayed in the status
+  //?   - "status" - The status that will be set (online, idle, dnd, invisible)
+  //?   - "url" - (only if 'streaming') The URL that the user will be redirected to when they click on the status
+  //?   - "condition" - A JavaScript condition that needs to be met for the status to be set (e.g "{twitch:vods:inimized} > 0" - if the streamer has more than 0 vods, the status will be set)
+
+  "statuses": [
+    "Watching {members} {members[member:members]}", //* (online) Watching 1 member / Watching 2 members
+    {
+      "text": "Watching {twitch:followers:inimized} Twitch {twitch:followers:inimized[follower:followers]}!", //* (dnd) Watching 1 Twitch follower / Watching 2 Twitch followers!
+      "status": "dnd"
+    },
+    {
+      "text": "Streaming to {twitch:followers:inimized} Twitch {twitch:followers:inimized[follower:followers]}!", //* (streaming) Streaming to 1 Twitch follower / Streaming to 2 Twitch followers!
+      "url": "https://twitch.tv/inimized"
+    },
+    {
+      "text": "Watching {twitch:vods:inimized} of Inimi's VODs!", //* (online) Watching 1 of Inimi's VODs! / Watching 2 of Inimi's VODs!
+      "condition": "{twitch:vods:inimized} > 0" //* Only set the status if the streamer has more than 0 vods
+    },
+    {
+      "text": "Watching Inimi use math! 13+43+23+5+45+9={custom:math}", //* Watching Inimi use math! 13+43+23+5+45+9=138
+      "customVariables": {
+        "math": "(()=>{return 13+43+23+5+45+9})()" 
+      }
+    },
+    // ...
+  ],
+
   //? This specifies resources for the bot to use, such as links to wordle answers and guesses. (Make sure to use raw links if using GitHub!)
   //! You can access these resources using 'global.app.config.resources.xyz'
   //! If you need to process some of the data in these resources, like fetching data from a URL, you can do so in the 'setup' function in your event/command file, and then you can assign it to global.resources.xyz

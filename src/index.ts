@@ -1153,15 +1153,25 @@ global.identifier = md5(os.userInfo().username + "@" + os.hostname()).substring(
               type: "runEvery",
               now: Date.now(),
               timeout: setInterval(async () => {
-                if (!event.running) {
-                  /* prettier-ignore */
-                  global.logger.debug(`Running '${eventType} (${prettyInterval})' event: ${eventName}`,returnFileName());
-                  await event.runEvent(client);
-                } else {
-                  /* prettier-ignore */
-                  global.logger.debugError(`Not running '${eventType} (${prettyInterval})' event: ${eventName} reason: Previous iteration is still running.`, returnFileName());
-                }
-              }, event.ms)
+
+                let minJitter = event.jitter.min < 0 ? 0 : event.jitter.min
+                let maxJitter = event.jitter.max + (event.jitter.min < 0 ? Math.abs(event.jitter.min) : 0)
+
+                let selectedMsJitter = Math.floor(Math.random() * (maxJitter - minJitter + 1)) + minJitter
+
+                let prettyJitter = chalk.hex("#FFA500")(prettyMilliseconds(selectedMsJitter - (event.jitter.min < 0 ? Math.abs(event.jitter.min) : 0), {verbose: false}))
+
+                sleep(selectedMsJitter).then(async () => {
+                  if (!event.running) {
+                    /* prettier-ignore */
+                    global.logger.debug(`Running '${eventType} (${prettyInterval}) (${prettyJitter} jitter)' event: ${eventName}`,returnFileName());
+                    await event.runEvent(client);
+                  } else {
+                    /* prettier-ignore */
+                    global.logger.debugError(`Not running '${eventType} (${prettyInterval}) (${prettyJitter} jitter)' event: ${eventName} reason: Previous iteration is still running.`, returnFileName());
+                  }
+                })
+              }, event.ms - (event.jitter.min < 0 ? Math.abs(event.jitter.min) : 0)),
             });
           } else if (event.type === "discordEvent") {
             const listenerKey = chalk.cyan.bold(event.listenerKey)
@@ -1228,15 +1238,20 @@ global.identifier = md5(os.userInfo().username + "@" + os.hostname()).substring(
       global.logger.log("------------------------", returnFileName());
 
       fullyReady = true;
-      client.user.setPresence({
-        activities: [
-          {
-            name: "you",
-            type: ActivityType.Watching,
-          },
-        ],
-        status: "online",
-      });
+      
+      
+
+      if (!global.moduleInfo.events.includes("ChangeDiscordStatus")) {
+        client.user.setPresence({
+          activities: [
+            {
+              name: "you",
+              type: ActivityType.Watching,
+            },
+          ],
+          status: "online",
+        });
+      }
     });
 
     /* prettier-ignore */
