@@ -32,7 +32,7 @@ export default class CacheManager {
     }
 
     delete(key: any): boolean {
-        return this.delete(key)
+        return this.cache.delete(key)
     }
 
     entries(): IterableIterator<[any, any]> {
