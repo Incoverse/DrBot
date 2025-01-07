@@ -1,17 +1,16 @@
 <a name="readme-top"></a>
 <!--
 *** This is the readme for the DrBot bot.
-*** Credit to https://github.com/ROBERTGUO19 for making this README!
+*** Credit to https://github.com/ROBERTGUO19 for making the original README for IRIS
 -->
-
 
 <br />
 <div align="center">
   <a href="https://github.com/Incoverse/DrBot">
-    <img src="https://i.imgur.com/fZa7QZ4.png" alt="Logo" width="80" height="80">
+    <img src="https://i.imgur.com/IE8HTiM.png" alt="Logo" width="80" height="80">
   </a>
 
-  <h3 align="center">DrBot (Intelligent Response Interface System)</h3>
+  <h3 align="center">DrBot (A Discord bot built for DrVem's Community)</h3>
 
   <p align="center">
     DrBot is a Discord bot that is focused on fun and utlities, as well as helping people understand TypeScript.
@@ -23,7 +22,7 @@
 
 
 <!-- TABLE OF CONTENTS -->
-<details>
+<details open>
   <summary>Table of Contents</summary>
   <ol>
     <li>
@@ -52,13 +51,9 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
+Welcome to the official repository for DrBot, a Discord bot focused on fun and utilities with the purpose of helping people understand TypeScript. The name DrBot comes from the streamer DrVem, whose community this was built for.
 
-
-Welcome to the official repository for DrBot, a Discord bot focused on fun and utilities with the purpose of helping people understand TypeScript. DrBot stands for Intelligent Response Interface System.
-
-DrBot is coded from scratch and with :heart: by the Incoverse team. 
-
-
+DrBot is coded from scratch and with :heart: by the DrVem Community!
 
 ### Built With
 
@@ -105,7 +100,7 @@ Follow these steps to get a copy of DrBot up and running on your machine!
    > This step is optional but recommended. If you wish to use file storage instead, skip to step 8.
    > 
    > If you wish to do it on your computer, follow [this guide (Windows)](https://www.prisma.io/dataguide/mongodb/setting-up-a-local-mongodb-database). For other operating systems, try googling about how to create a MongoDB server for that specific operating system. If done on the machine where DrBot will be running, your "mongoDBServer" in config.jsonc will be "localhost".
-6. Create the following databases on your MongoDB server: (MongoDB Compass is recommended to do this much simpler)
+6. Create the following databases on your MongoDB server: (MongoDB Compass is recommended to do this in a much simpler way)
    - DrBot
    - DrBot_DEVELOPMENT
    
@@ -124,6 +119,7 @@ Follow these steps to get a copy of DrBot up and running on your machine!
    npm install
    ```
 10. Create your discord bot.
+    > Please note that the client ID, secret and token should **never** be committed to the repository
     - [Create a new Discord Application](https://discord.com/developers/applications)
     - Go to the `OAuth2` section and write down your client ID and secret
     - Staying on the same page, add the following redirect URI `http://localhost:7380` (Discord may add a slash at the end, make sure to remove it) 
