@@ -125,7 +125,7 @@ Follow these steps to get a copy of DrBot up and running on your machine!
     - Staying on the same page, add the following redirect URI `http://localhost:7380` (Discord may add a slash at the end, make sure to remove it) 
     - Go to the `Bot` section and turn on all of the intents and write down your bot token (click 'Reset Token' to create the token)
 
-12. Create a `.env` file in the project's root directory and replace the following values to the ones you've written down: `<bot-token>`, `<client-id>`, `<client-secret>`, `<MongoDB username>`, `<MongoDB password>`. Set DEVELOPMENT to YES or NO depending on what you want to do.
+11. Create a `.env` file in the project's root directory and replace the following values to the ones you've written down: `<bot-token>`, `<client-id>`, `<client-secret>`, `<MongoDB username>`, `<MongoDB password>`. Set DEVELOPMENT to YES or NO depending on what you want to do.
 
     ```
     TOKEN="<bot-token>"
@@ -136,7 +136,7 @@ Follow these steps to get a copy of DrBot up and running on your machine!
     cSecret="<client-secret>"
     ```
 
-13. Now it's time to add your bot to your server. Use the following URL, but replace `[client-id]` with the client ID you wrote down: https://discord.com/api/oauth2/authorize?client_id=[client-id]&permissions=328866327553&scope=bot%20applications.commands 
+12. Now it's time to add your bot to your server. Use the following URL, but replace `[client-id]` with the client ID you wrote down: https://discord.com/api/oauth2/authorize?client_id=[client-id]&permissions=328866327553&scope=bot%20applications.commands 
    > Follow <a href="#server-creation-notes">Server Creation Notes</a> to create your server.
 13. Write `npm run CnR` in your cmd/terminal (CnR = Compile & Run) and click Enter.
 14. When a link is displayed in the console, open it in your browser and authorize it. This will allow DrBot to properly set up command permissions (defined in `config.jsonc`).
