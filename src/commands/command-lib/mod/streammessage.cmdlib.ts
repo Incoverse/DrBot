@@ -53,10 +53,10 @@ export default class ModStreamMessage extends DrBotSubcommand {
                     option
                         .setName("template")
                         .setDescription("Select a template")
-                        .addChoices({
-                            name: "stream", value: "stream"
-                        }, {
-                            name:"cancellation", value: "cancellation"})
+                        .addChoices(
+                            {name: "stream", value: "stream"},
+                            {name: "cancellation", value: "cancellation"}
+                        )
                 )
         );
         return super.setup();
