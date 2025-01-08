@@ -59,8 +59,7 @@ export default class ModStreamMessage extends DrBotSubcommand {
                             name:"cancellation", value: "cancellation"})
                 )
         );
-        this._loaded = true;
-        return true;
+        return super.setup();
     }
 
     public async runSubCommand(interaction: Discord.CommandInteraction) {
