@@ -119,7 +119,7 @@ export default class ModStreamMessage extends DrBotSubcommand {
             !moment(time, "HH:mm").isValid()
         ) {
             return await interaction.editReply({
-                content: "Invalid time format. Please use `hh:mm am/pm` or `HH:mm`",
+                content: "Invalid time format. Please use `hh:mm am/pm` or `HH:mm`. Example: `10:34 am`, `23:12`",
             });
         }
 
