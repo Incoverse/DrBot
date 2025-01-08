@@ -105,7 +105,7 @@ export default class ModStreamMessage extends DrBotSubcommand {
 
         if (template === "cancellation") {
             await interaction.editReply({
-                content: `Ok sent to ${channel}`,
+                content: `Your message has been sent to {channel}` // Add a preview of the message if possible?
             });
 
             await channel.send({
