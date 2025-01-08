@@ -74,7 +74,7 @@ export default class ModStreamMessage extends DrBotSubcommand {
         if (!channels.some((channel) => /live-(streams|notifications|notifs|announcements)/i.test(channel.name) && channel.type == Discord.ChannelType.GuildText)) {
 
             if (!channels.some((channel) => /announcements/i.test(channel.name) && channel.type == Discord.ChannelType.GuildText)) {
-                interaction.editReply({content: "No channel found with the name `live-streams`, `live-notifications`, `live-notifs`, `live-announcements`, or `announcements`"});
+                interaction.editReply({content: "I was unable to find a valid channel for the stream announcement.\n#- Searched for: `live-streams`, `live-notifications`, `live-notifs`, `live-announcements`, and `announcements`"});
                 return;
             } else {
                 channel = channels.find((channel) => /announcements/i.test(channel.name) && channel.type == Discord.ChannelType.GuildText);
