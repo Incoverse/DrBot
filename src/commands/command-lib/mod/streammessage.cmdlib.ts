@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Inimi | DrHooBs | Incoverse
+ * Copyright (c) 2025 Inimi | DrHooBs | Incoverse
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
