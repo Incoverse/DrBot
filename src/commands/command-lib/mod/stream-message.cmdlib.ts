@@ -19,7 +19,6 @@ import * as Discord from "discord.js";
 import { DrBotGlobal } from "@src/interfaces/global.js";
 import moment from "moment-timezone";
 import storage from "@src/lib/utilities/storage.js";
-import { DrBotSlashCommand } from "@src/lib/base/DrBotCommand.js";
 import { DrBotSubcommand } from "@src/lib/base/DrBotSubcommand.js";
 
 declare const global: DrBotGlobal;
@@ -28,11 +27,10 @@ export default class ModStreamMessage extends DrBotSubcommand {
     static parentCommand: string = "Mod";
 
     public async setup(
-        parentSlashCommand: Discord.SlashCommandBuilder
-    ): Promise<boolean> {
+        parentSlashCommand: Discord.SlashCommandBuilder, client: Discord.Client): Promise<boolean> {
         parentSlashCommand.addSubcommand((subcommand) =>
             subcommand
-                .setName("streammessage")
+                .setName("stream-message")
                 .setDescription("Set a stream message for a role")
                 .addStringOption((option) =>
                     option
@@ -59,7 +57,7 @@ export default class ModStreamMessage extends DrBotSubcommand {
                         )
                 )
         );
-        return super.setup();
+        return super.setup(parentSlashCommand, client);
     }
 
     public async runSubCommand(interaction: Discord.CommandInteraction) {
@@ -67,9 +65,12 @@ export default class ModStreamMessage extends DrBotSubcommand {
             ephemeral: true,
         });
 
+        let cancellationTemplate = global.app.config.streamMessages.cancelled;
+        let streamingTemplate = global.app.config.streamMessages.streaming;
+
         //Get Channel List
         const channels = await interaction.client.guilds.fetch(global.app.config.mainServer).then(guild => guild.channels.fetch())
-        // check if there is a channel that includes "birthdays" in it's name
+
         let channel;
         if (!channels.some((channel) => /live-(streams|notifications|notifs|announcements)/i.test(channel.name) && channel.type == Discord.ChannelType.GuildText)) {
 
@@ -91,25 +92,23 @@ export default class ModStreamMessage extends DrBotSubcommand {
 
         //Get options from command
         const template = (interaction.options as Discord.CommandInteractionOptionResolver).getString("template");
-        const role = (
-            interaction.options as Discord.CommandInteractionOptionResolver
-        ).getRole("role") ?? "";
-        const message = (
-            interaction.options as Discord.CommandInteractionOptionResolver
-        ).getString("message");
-        const time = (
-            interaction.options as Discord.CommandInteractionOptionResolver
-        ).getString("time");
+        const role = (interaction.options as Discord.CommandInteractionOptionResolver).getRole("role") ?? "";
+        const message = (interaction.options as Discord.CommandInteractionOptionResolver).getString("message");
+        const time = (interaction.options as Discord.CommandInteractionOptionResolver).getString("time");
 
         //Check if time is a valid time
 
         if (template === "cancellation") {
+            //"cancelled": "[updates-ping], the stream [next-stream-relative] is cancelled due to [reason]. See you all next time!", // @Live Updates, the stream in 2 days is cancelled due to me being sick. See you all next time!"
+            
+            cancellationTemplate = cancellationTemplate.replace("[updates-ping]", `<${role}`)
+            cancellationTemplate = cancellationTemplate.replace("[reason]", message)
             await interaction.editReply({
-                content: `Your message has been sent to {channel}` // Add a preview of the message if possible?
+                content: `Your message has been sent to ${channel}` // Add a preview of the message if possible?
             });
 
             await channel.send({
-                content: `${role} We're cancelling the stream! ${message} `,
+                content: cancellationTemplate,
             });
             return;
         }
@@ -142,8 +141,13 @@ export default class ModStreamMessage extends DrBotSubcommand {
                 content: `Ok sent to ${channel}`,
             });
 
+            //"streaming": "[notifs-ping], we are currently live and playing [game]! Come join us over on Twitch! https://twitch.tv/drvem", // @Live Notifications, we are currently live and playing Valheim! Come join us over on Twitch! https://twitch.tv/drvem
+            
+            streamingTemplate = streamingTemplate.replace("[notifs-ping]", `${role}`)
+            streamingTemplate = streamingTemplate.replace("[game]", message)
+            streamingTemplate = streamingTemplate.replace("[time]", `<t:${timestamp}>`)
             await channel.send({
-                content: `${role} We're going live! ${message} at <t:${timestamp}>`,
+                content: streamingTemplate,
             });
         }
 

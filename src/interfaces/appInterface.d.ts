@@ -70,6 +70,10 @@ interface AppInterface {
       }
     };
     nsStreamer: string;
+    streamMessages: {
+      cancelled: string,
+      streaming: string
+    }
     statuses: (string|{customVariables?: {[key:string]:string};condition?: string; text: string, url?: string, status?: "online" | "dnd" | "idle" | "invisible"
 })[],
     resources: {
