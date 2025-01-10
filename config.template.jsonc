@@ -240,6 +240,13 @@
     // ...
   ],
 
+  //? These are the default messages that DrBot will send when a stream is cancelled or when a stream is live.
+  //! Text in square brackets can't be edited without modifying src/commands/command-lib/mod/stream-message.cmdlib.ts
+  "streamMessages": {
+    "cancelled": "[updates-ping], the next stream is cancelled because [reason]. See you all next time!", // @Live Updates, the next stream is cancelled because I'm being sick. See you all next time!"
+    "streaming": "[notifs-ping], we are currently live and playing [game]! Come join us over on Twitch! https://twitch.tv/example", // @Live Notifications, we are currently live and playing Valheim! Come join us over on Twitch! https://twitch.tv/drvem
+  },
+
   //? This specifies resources for the bot to use, such as links to wordle answers and guesses. (Make sure to use raw links if using GitHub!)
   //! You can access these resources using 'global.app.config.resources.xyz'
   //! If you need to process some of the data in these resources, like fetching data from a URL, you can do so in the 'setup' function in your event/command file, and then you can assign it to global.resources.xyz
