@@ -38,3 +38,5 @@ src/config.ts
 
 # Ignore all reference files which are used to rewrite modules
 *.ref.*
+# Next.js build output
+.next/

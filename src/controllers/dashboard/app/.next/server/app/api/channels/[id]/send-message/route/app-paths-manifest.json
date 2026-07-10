@@ -1,3 +1,0 @@
-{
-  "/api/channels/[id]/send-message/route": "app/api/channels/[id]/send-message/route.js"
-}
