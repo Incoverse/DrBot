@@ -20,6 +20,7 @@ import WaiterCommand, { type ChannelMessage } from "@twitch/lib/base/WaiterComma
 import { StreamerIsLive } from "../../lib/conditions";
 
 export default class UnlurkCMD extends WaiterCommand {
+  public override displayName = "Unlurk";
   public messageTrigger: RegExp = /^!unlurk/;
 
   public override async setup(clients: TwitchClient[]): Promise<boolean | null> {

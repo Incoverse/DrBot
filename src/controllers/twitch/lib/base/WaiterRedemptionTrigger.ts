@@ -19,6 +19,7 @@ import CacheManager from "@/lib/cache.js";
 import chalk from "chalk";
 import type TwitchClient from "../../client.js";
 import type WaiterReward from "./WaiterReward.js";
+import type { RewardOverride } from "./WaiterReward.js";
 
 export default abstract class WaiterRedemptionTrigger {
     protected bot: TwitchClient;
@@ -26,6 +27,19 @@ export default abstract class WaiterRedemptionTrigger {
     protected cache: CacheManager = new CacheManager();
     public abstract settings: RedemptionSettings;
   public defaultInstalled: boolean = false;
+
+  /** Human-readable name shown in the dashboard. Falls back to reward name or class name. */
+  public displayName?: string;
+
+  public getDisplayName(): string {
+    if (this.displayName) return this.displayName;
+    const s = this.settings as any;
+    if (s?.reward?.settings?.name) return s.reward.settings.name;
+    return this.constructor.name
+      .replace(/RTGR$/i, "")
+      .replace(/([A-Z])/g, " $1")
+      .trim();
+  }
 
     public loaded: boolean = false;
     public logger: Console;
@@ -71,6 +85,122 @@ export default abstract class WaiterRedemptionTrigger {
      */
     public isInstalled(streamer: TwitchClient): boolean {
       return streamer.config?.[this.getConfigKey()] ?? this.defaultInstalled;
+    }
+
+    /**
+     * Public accessor for the streamer_config key that stores this trigger's installed state.
+     * Used by the dashboard API to enumerate/toggle code-defined triggers.
+     */
+    public getInstalledConfigKey(): string {
+      return this.getConfigKey();
+    }
+
+    /**
+     * Set the installed state for a streamer, writing THROUGH the in-memory config proxy
+     * (live + persisted). Note: this only flips the flag — the reward is
+     * (un)registered by RedemptionHandler on the next setup/restart.
+     */
+    public setInstalledFor(streamer: TwitchClient, installed: boolean): void {
+      if (installed === this.defaultInstalled) {
+        streamer.config[this.getConfigKey()] = undefined;
+      } else {
+        streamer.config[this.getConfigKey()] = installed;
+      }
+    }
+
+    /**
+     * The streamer_config key storing this trigger's ENABLED (pause/unpause) flag. Distinct
+     * from the installed flag: installed = the reward is registered on Twitch; enabled =
+     * the reward's is_enabled + whether the trigger fires. Defaults to true.
+     */
+    public getEnabledConfigKey(): string {
+      return `rtgr${this.constructor.name.replace(/rtgr$/i, "")}-enabled`;
+    }
+
+    /**
+     * Whether this trigger is enabled for the streamer. Only meaningful while installed.
+     * Defaults to true (an installed reward fires unless explicitly paused).
+     */
+    public isEnabled(streamer: TwitchClient): boolean {
+      return streamer.config?.[this.getEnabledConfigKey()] ?? true;
+    }
+
+    /**
+     * Set the enabled flag through the live config proxy (live + persisted). Clearing back to
+     * the default (true) removes the override. The RedemptionHandler applies the matching
+     * reward is_enabled live; this only stores the flag.
+     */
+    public setEnabledFor(streamer: TwitchClient, enabled: boolean): void {
+      if (enabled === true) {
+        streamer.config[this.getEnabledConfigKey()] = undefined;
+      } else {
+        streamer.config[this.getEnabledConfigKey()] = false;
+      }
+    }
+
+    /**
+     * The streamer_config key storing this trigger's per-channel STATISTICAL flag. When set,
+     * every redeem of this trigger's reward increments a persisted per-channel counter
+     * (redemption_stats). Defaults to false.
+     */
+    public getStatisticalConfigKey(): string {
+      return `rtgr${this.constructor.name.replace(/rtgr$/i, "")}-statistical`;
+    }
+
+    /**
+     * Whether this trigger is marked statistical for the streamer. Defaults to false.
+     */
+    public isStatistical(streamer: TwitchClient): boolean {
+      return streamer.config?.[this.getStatisticalConfigKey()] ?? false;
+    }
+
+    /**
+     * Set the statistical flag through the live config proxy (live + persisted). Clearing back to
+     * the default (false) removes the override.
+     */
+    public setStatistical(streamer: TwitchClient, statistical: boolean): void {
+      if (statistical === true) {
+        streamer.config[this.getStatisticalConfigKey()] = true;
+      } else {
+        streamer.config[this.getStatisticalConfigKey()] = undefined;
+      }
+    }
+
+    /**
+     * The streamer_config key storing this trigger's per-channel reward OVERRIDE. The .rtgr
+     * file's reward settings are defaults; this object holds only the fields the channel
+     * overrode ({ cost?, prompt?, cooldownSeconds?, inputRequired?, maxPerStream?, maxPerUserPerStream? }).
+     */
+    public getRewardOverrideConfigKey(): string {
+      return `rtgr${this.constructor.name.replace(/rtgr$/i, "")}-reward`;
+    }
+
+    /** The stored per-channel reward override for a streamer (only overridden fields), or {}. */
+    public getRewardOverride(streamer: TwitchClient): RewardOverride {
+      const v = streamer.config?.[this.getRewardOverrideConfigKey()];
+      return v && typeof v === "object" ? (v as RewardOverride) : {};
+    }
+
+    /**
+     * Effective catch-up-pending for a streamer. Stored in the same override blob (trigger-level,
+     * not a reward field); per-channel value wins, else the .rtgr code default (default true).
+     */
+    public getEffectiveCatchUpPending(streamer: TwitchClient): boolean {
+      const v = streamer.config?.[this.getRewardOverrideConfigKey()] as any;
+      if (v && typeof v === "object" && typeof v.catchUpPending === "boolean") return v.catchUpPending;
+      return this.settings.catchUpPending !== false;
+    }
+
+    /**
+     * Persist the per-channel reward override through the live config proxy. An empty object
+     * clears the override entirely (reverts to code defaults).
+     */
+    public setRewardOverride(streamer: TwitchClient, override: RewardOverride | null): void {
+      if (!override || Object.keys(override).length === 0) {
+        streamer.config[this.getRewardOverrideConfigKey()] = undefined;
+      } else {
+        streamer.config[this.getRewardOverrideConfigKey()] = override;
+      }
     }
 
     /**
@@ -133,7 +263,7 @@ export type RedemptionInfo = {
 }
 
 
-export type RedemptionSettings = 
+export type RedemptionSettings = (
 | {
   /**
    * This redemption trigger is not defined by Waiter, but by an external source or by the broadcaster themselves
@@ -153,4 +283,14 @@ export type RedemptionSettings =
    * The reward that this redemption trigger is associated with
    */
   reward: WaiterReward
+}
+) & {
+  /**
+   * On Waiter start, fetch all pending (UNFULFILLED) redemptions for this trigger's reward
+   * (or, for external triggers, every reward whose title matches), run each through `exec`,
+   * and let the trigger mark them as fulfilled/canceled like a live redemption.
+   *
+   * Enabled by default; set to `false` to opt out.
+   */
+  catchUpPending?: boolean;
 };

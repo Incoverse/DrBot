@@ -21,8 +21,8 @@ export default class StreamerConfig {
           const existingRecord = target.data.find((record) => record.key === prop);
           if (existingRecord) {
             if (value == undefined) {
-              delete target[prop];
-            } else { 
+              target.data = target.data.filter((record) => record.key !== prop);
+            } else {
               existingRecord.value = value;
             }
           } else {

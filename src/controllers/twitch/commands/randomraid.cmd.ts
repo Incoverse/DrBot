@@ -31,6 +31,7 @@ const pointSystem = {
 }
 
 export default class RandomRaidCMD extends WaiterCommand {
+  public override displayName = "Random Raid";
   public messageTrigger: RegExp = /^!(random|rnd|rng)raid(\s+(?<args>.+))?$/;
 
   public override async setup(clients: TwitchClient[], reason?: "initial" | "catch-up" | "other"): Promise<boolean | null> {

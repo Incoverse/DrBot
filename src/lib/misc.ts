@@ -1,11 +1,11 @@
 import { CronJob } from "cron";
 import fs from "fs";
+import moment from "moment-timezone";
 import path from "path";
 import { RecordId } from "surrealdb";
 import { ToWords } from 'to-words';
 import { z, ZodObject, type ZodJSONSchema } from "zod";
 import CacheManager from "./cache";
-import moment from "moment-timezone";
 
 export function getStaticProps(cls: any) {
   return Object.getOwnPropertyNames(cls)
@@ -304,6 +304,23 @@ export async function invalidateCache(anyId: string | RecordId) {
       console.withSender("MISC").debug(`Attempted to invalidate cache for user with ID ${normalizedId}, but no matching cache entry was found.`);
     }
   }
+}
+
+export function ensureTwitchUser(user: {
+  id: string,
+  login: string,
+  display_name: string,
+}) {
+  return global.db.query(
+    `UPSERT twitch_users:\`${user.id}\` SET login = $login, display_name = $display_name`,
+    {
+      login: user.login,
+      display_name: user.display_name,
+    }
+  ).catch((error) => {
+    console.withSender("MISC").error(`Error ensuring Twitch user ${user.login} (${user.id}) exists in the database:`, error);
+    throw error;
+  });
 }
 
 export async function getSpotify(anyId: string | RecordId, forceFetch = false) {

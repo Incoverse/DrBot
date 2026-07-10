@@ -1,20 +1,27 @@
 import { hmr } from "@/lib/hmr";
 import { extendsClass, findFiles, importLocalModule } from "@/lib/misc";
 import type TwitchClient from "@twitch/client";
-import WaiterCommand, { type ChannelMessage, type MessageBasedOnScope } from "@twitch/lib/base/WaiterCommand";
+import WaiterCommand, { type ChannelMessage, type CommandOverride, type EffectiveCommandDetails, type MessageBasedOnScope } from "@twitch/lib/base/WaiterCommand";
 import chalk from "chalk";
 import path from "path";
 import WaiterEvent, { type BroadcasterSender, type EventInfo, type TwitchEventInfo } from "../lib/base/WaiterEvent";
 import { isChannelChatMessage, type ChannelChatMessage, type UserWhisperMessage } from "../types";
 
-let globalCommandHandler: TCMD | null = null;
+// globalThis-backed, NOT a plain module-level var: bun loads this module as more than one record
+// (same bug as web/index.ts's __waiterFallbackHandlers/__waiterToRegister). The TCMD instance whose
+// setup() stores the handler lives in one record, but triggers/commands that import
+// getCommandHandler() via a different specifier ("../events/CommandHandler.evt",
+// "../../events/CommandHandler.evt.js") resolve to a DIFFERENT record → they'd read a null module
+// var. Sharing the slot via globalThis makes every caller see the one live handler.
+type GlobalWithCH = typeof globalThis & { __waiterCommandHandler?: TCMD | null };
 
 /**
  * Get the global command handler instance. Used internally by commands to call other commands.
  */
 export function getCommandHandler(): TCMD | null {
-  return globalCommandHandler;
+  return (globalThis as GlobalWithCH).__waiterCommandHandler ?? null;
 }
+
 
 export default class TCMD extends WaiterEvent {
   public override eventTrigger: (params: BroadcasterSender) => EventInfo = ({ sender, broadcaster }) => ({
@@ -41,6 +48,76 @@ export default class TCMD extends WaiterEvent {
   private commands: WaiterCommand[] = [];
   private commandsByFile = new Map<string, WaiterCommand>();
   private setupClients: TwitchClient[] = [];
+
+  public convertToSystemExecutor(message: ChannelChatMessage): ChannelChatMessage {
+    message.event.chatter_user_id = "00000000"
+    message.event.chatter_user_login = "system"
+    message.event.chatter_user_name = "System"
+    return message;
+  }
+
+  public convertToUserExecutor(message: ChannelChatMessage, user: {
+    id: string;
+    login: string;
+    display_name: string;
+  }): ChannelChatMessage {
+    message.event.chatter_user_id = user.id;
+    message.event.chatter_user_login = user.login;
+    message.event.chatter_user_name = user.display_name;
+    return message;
+  }
+
+  public changeMessage(message: ChannelChatMessage, newMessage: string): ChannelChatMessage {
+    message.event.message.text = newMessage;
+    return message;
+  }
+
+  public generateFakeMessage(channel: TwitchClient, text: string): ChannelChatMessage {
+    return {
+      subscription: {
+        id: "fake-subscription-id",
+        type: "channel.chat.message",
+        version: "1",
+        status: "enabled",
+        
+        condition: {
+          broadcaster_user_id: channel.IAM.id,
+          user_id: this.bot.IAM.id,
+        },
+        transport: {
+          method: "websocket",
+          callback: ""
+        },
+        cost: 0,
+        created_at: new Date().toISOString(),
+      },
+      event: {
+        broadcaster_user_id: channel.IAM.id,
+        broadcaster_user_login: channel.IAM.login,
+        broadcaster_user_name: channel.IAM.display_name,
+        chatter_user_id: "00000000",
+        chatter_user_login: "system",
+        chatter_user_name: "System",
+        message_id: "fake-message-id",
+        message: {
+          text,
+          fragments: []
+        },
+        color: "red",
+        badges: [],
+        message_type: "text",
+        cheer: null,
+        reply: null,
+        channel_points_custom_reward_id: null,
+        source_broadcaster_user_id: null,
+        source_broadcaster_user_login: null,
+        source_broadcaster_user_name: null,
+        source_message_id: null,
+        source_badges: null
+
+      }
+    }
+  }
 
   public override async setup(clients: TwitchClient[], reason: "initial" | "catch-up" | "other" = "initial"): Promise<boolean | null> {
     this.setupClients = clients;
@@ -96,7 +173,8 @@ export default class TCMD extends WaiterEvent {
     // Note: we can't track file paths for initially loaded commands since we only have class references,
     // but hot-reload will track them as they're added/modified
 
-    globalCommandHandler = this;
+    (globalThis as GlobalWithCH).__waiterCommandHandler = this;
+    (global as any).__commandHandler = this;
 
     if (global.config.hotReload.enabled && !global.isCompiled) {
 
@@ -240,7 +318,7 @@ export default class TCMD extends WaiterEvent {
   public async callCommand(
     channel: TwitchClient,
     message: ChannelMessage,
-    caller: WaiterCommand<"channel" | "both" | "dm">
+    caller: WaiterCommand<"channel" | "both" | "dm"> | any
   ): Promise<boolean> {
     for (const command of this.commands.filter(cmd => cmd.isChannelCommand())) {
       if (!command.isEnabled(channel)) {
@@ -264,6 +342,89 @@ export default class TCMD extends WaiterEvent {
     return false;
   }
 
+  /**
+   * Enumerate all loaded commands with their enabled state for a given channel.
+   * Consumed by the dashboard Commands API (Feature 4).
+   */
+  public getCommandsFor(streamer: TwitchClient): Array<{
+    id: string;
+    name: string;
+    scope: "channel" | "dm" | "both";
+    defaultEnabled: boolean;
+    enabled: boolean;
+    details: {
+      trigger: string;
+      triggerKind: "regex" | "function";
+      allowSelf: boolean;
+      onlyInTriggeredChannel: boolean;
+      configKey: string;
+    };
+  }> {
+    return this.commands.map((cmd) => {
+      let trigger = "dynamic (function)";
+      let triggerKind: "regex" | "function" = "function";
+      try {
+        const t = cmd.messageTrigger;
+        if (t instanceof RegExp) { trigger = t.source; triggerKind = "regex"; }
+      } catch { /* keep function fallback */ }
+      return {
+        id: cmd.constructor.name,
+        name: cmd.getDisplayName(),
+        scope: (cmd.settings.scope ?? "channel") as "channel" | "dm" | "both",
+        defaultEnabled: cmd.defaultEnabled,
+        enabled: cmd.isEnabled(streamer),
+        details: {
+          trigger,
+          triggerKind,
+          allowSelf: cmd.settings.allowSelf ?? false,
+          onlyInTriggeredChannel: cmd.settings.onlyInTriggeredChannel ?? true,
+          configKey: cmd.getEnabledConfigKey(),
+        },
+      };
+    });
+  }
+
+  /**
+   * Enable/disable a command (by class-name id) for a channel. Writes through the live
+   * config proxy so the change takes effect immediately. Returns false if id is unknown.
+   */
+  public setCommandEnabled(streamer: TwitchClient, id: string, enabled: boolean): boolean | "locked" {
+    const cmd = this.commands.find((c) => c.constructor.name === id);
+    if (!cmd) return false;
+    if (cmd.isDevOnly()) return "locked"; // dev-only commands can't be disabled
+    cmd.setEnabledFor(streamer, enabled);
+    return true;
+  }
+
+  /**
+   * Enumerate all loaded commands with their effective (default + per-channel override)
+   * details for a channel. Deduplicated by the enabled config key to guard against class-name
+   * collisions. Consumed by the dashboard Commands API (per-channel command editing).
+   */
+  public getCommandDetailsFor(streamer: TwitchClient): EffectiveCommandDetails[] {
+    const seen = new Set<string>();
+    const out: EffectiveCommandDetails[] = [];
+    for (const cmd of this.commands) {
+      const details = cmd.getEffectiveCommandDetails(streamer);
+      if (seen.has(details.enabledConfigKey)) continue;
+      seen.add(details.enabledConfigKey);
+      out.push(details);
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Set (or clear, with null) a command's per-channel settings override. Writes through the
+   * live config proxy so it takes effect immediately. Returns false if id is unknown.
+   */
+  public setCommandOverrideFor(streamer: TwitchClient, id: string, override: CommandOverride | null): boolean | "locked" {
+    const cmd = this.commands.find((c) => c.constructor.name === id);
+    if (!cmd) return false;
+    if (cmd.isDevOnly()) return "locked"; // dev-only commands can't be overridden
+    cmd.setCommandOverride(streamer, override);
+    return true;
+  }
+
   // @ts-expect-error (TS2416) - Method overloads with different parameters (Twitch:event has source and data, onStart has clients array)
   public override async exec(source: TwitchClient, data: ChannelChatMessage | UserWhisperMessage): Promise<void> {
 
@@ -274,64 +435,92 @@ export default class TCMD extends WaiterEvent {
         return;
       }
 
-      for (const command of this.commands.filter(cmd => cmd.isChannelCommand())) {
-        if (!command.isEnabled(streamer)) {
+      for (const command of this.commands) {
+        //? Resolve the effective (default + per-channel override) settings for this streamer.
+        //? enabled/scope/allowSelf/onlyInTriggeredChannel are consulted below via `eff`.
+        const eff = command.effectiveSettings(streamer);
+
+        //? Effective scope must include channel messages (default scope preserved when no override).
+        if (eff.scope !== "channel" && eff.scope !== "both") {
+          continue;
+        }
+
+        if (!eff.enabled) {
           continue;
         }
 
         if (command.messageTrigger instanceof RegExp && command.messageTrigger.test(data.event.message.text)) {
-          //? If the command doesn't allow self-triggering and the message was sent by the bot, ignore it to prevent potential loops.
-          if (data.event.chatter_user_id === source.IAM.id && !command.settings.allowSelf) {
-            return;
+          //? If the command doesn't allow self-triggering and the message was sent by the bot, skip THIS command (not the whole batch) to prevent potential loops.
+          if (data.event.chatter_user_id === source.IAM.id && !eff.allowSelf) {
+            continue;
           }
 
-          //? In shared chat situations between multiple streamers where Waiter is enabled, the command executed in one stream will be handled on all streams, if the command's settings specify that it should only trigger in the channel that the command was sent in, ignore it if the event has a source_broadcaster_user_id (indicating it's from a different channel).
-          if (command.settings.onlyInTriggeredChannel && !!data.event.source_broadcaster_user_id) {
-            return;
+          //? In shared chat situations between multiple streamers where Waiter is enabled, the command executed in one stream will be handled on all streams, if the command's settings specify that it should only trigger in the channel that the command was sent in, skip THIS command if the event has a source_broadcaster_user_id (indicating it's from a different channel).
+          if (eff.onlyInTriggeredChannel && !!data.event.source_broadcaster_user_id) {
+            continue;
           }
 
           this.logger.withPrefix(`[${streamer.IAM.login} - ${command.constructor.name}]`).log(`Command was triggered by ${data.event.chatter_user_name} with message: "${data.event.message.text}"`);
-          command.exec(streamer, data.event);
+          try {
+            const cmdName = (command as any).getDisplayName?.() ?? command.constructor.name;
+            (global as any).logDashboardEvent?.({ category: "command", action: "run", channelId: streamer.IAM.id, actor: { twitchId: data.event.chatter_user_id, name: data.event.chatter_user_name }, summary: `${data.event.chatter_user_name} ran ${cmdName}`, detail: { command: cmdName } });
+          } catch { /* telemetry best-effort */ }
+          void Promise.resolve(command.exec(streamer, data.event)).catch((e) => this.logger.error(`Command ${command.constructor.name} threw:`, e));
         } else if (typeof command.messageTrigger === "function") {
           const result = command.messageTrigger(data.event)
-          //? If the command doesn't allow self-triggering and the message was sent by the bot, ignore it to prevent potential loops.
-          if (data.event.chatter_user_id === source.IAM.id && !command.settings.allowSelf) {
-            return;
+          //? If the command doesn't allow self-triggering and the message was sent by the bot, skip THIS command (not the whole batch) to prevent potential loops.
+          if (data.event.chatter_user_id === source.IAM.id && !eff.allowSelf) {
+            continue;
           }
-          
-          //? In shared chat situations between multiple streamers where Waiter is enabled, the command executed in one stream will be handled on all streams, if the command's settings specify that it should only trigger in the channel that the command was sent in, ignore it if the event has a source_broadcaster_user_id (indicating it's from a different channel).
-          if (command.settings.onlyInTriggeredChannel && !!data.event.source_broadcaster_user_id) {
-            return;
+
+          //? In shared chat situations between multiple streamers where Waiter is enabled, the command executed in one stream will be handled on all streams, if the command's settings specify that it should only trigger in the channel that the command was sent in, skip THIS command if the event has a source_broadcaster_user_id (indicating it's from a different channel).
+          if (eff.onlyInTriggeredChannel && !!data.event.source_broadcaster_user_id) {
+            continue;
           }
 
           if (result) {
             this.logger.withPrefix(`[${streamer.IAM.login} - ${command.constructor.name}]`).log(`Command was triggered by ${data.event.chatter_user_name} with message: "${data.event.message.text}"`);
-            command.exec(streamer, data.event);
+            try {
+              const cmdName = (command as any).getDisplayName?.() ?? command.constructor.name;
+              (global as any).logDashboardEvent?.({ category: "command", action: "run", channelId: streamer.IAM.id, actor: { twitchId: data.event.chatter_user_id, name: data.event.chatter_user_name }, summary: `${data.event.chatter_user_name} ran ${cmdName}`, detail: { command: cmdName } });
+            } catch { /* telemetry best-effort */ }
+            void Promise.resolve(command.exec(streamer, data.event)).catch((e) => this.logger.error(`Command ${command.constructor.name} threw:`, e));
           }
         }
       }
     } else {
-      for (const command of this.commands.filter(cmd => cmd.isDMCommand())) {
-        if (!command.isEnabled(source)) {
+      for (const baseCommand of this.commands) {
+        // This is the whisper/DM dispatch path — treat the command as DM-capable so exec/messageTrigger
+        // accept the whisper event. Effective scope (below) is what actually gates DM handling.
+        const command = baseCommand as unknown as WaiterCommand<"dm">;
+        //? Resolve the effective (default + per-channel override) settings for the bot channel.
+        const eff = command.effectiveSettings(source);
+
+        //? Effective scope must include DM (whisper) messages.
+        if (eff.scope !== "dm" && eff.scope !== "both") {
+          continue;
+        }
+
+        if (!eff.enabled) {
           continue;
         }
 
         if (command.messageTrigger instanceof RegExp && command.messageTrigger.test(data.event.whisper.text)) {
-          if (data.event.from_user_id === source.IAM.id && !command.settings.allowSelf) {
-            return;
+          if (data.event.from_user_id === source.IAM.id && !eff.allowSelf) {
+            continue;
           }
           this.logger.withPrefix(`[WHISPER - ${source.IAM.login} - ${command.constructor.name}]`).log(`Command was triggered by ${data.event.from_user_name} with message: "${data.event.whisper.text}"`);
-          command.exec(source, data.event);
+          void Promise.resolve(command.exec(source, data.event)).catch((e) => this.logger.error(`Command ${command.constructor.name} threw:`, e));
         } else if (typeof command.messageTrigger === "function") {
           const messageTrigger = command.messageTrigger as (event: MessageBasedOnScope<"dm">) => boolean | { [key: string]: string };
           const result = messageTrigger(data.event as MessageBasedOnScope<"dm">);
-          if (data.event.from_user_id === source.IAM.id && !command.settings.allowSelf) {
-            return;
+          if (data.event.from_user_id === source.IAM.id && !eff.allowSelf) {
+            continue;
           }
 
           if (result) {
             this.logger.withPrefix(`[WHISPER - ${source.IAM.login} - ${command.constructor.name}]`).log(`Command was triggered by ${data.event.from_user_name} with message: "${data.event.whisper.text}"`);
-            command.exec(source, data.event);
+            void Promise.resolve(command.exec(source, data.event)).catch((e) => this.logger.error(`Command ${command.constructor.name} threw:`, e));
           }
         }
       }

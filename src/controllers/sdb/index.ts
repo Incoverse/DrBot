@@ -7,7 +7,7 @@ import {
   importLocalModule
 } from "@/lib/misc";
 import chalk from "chalk";
-import ping from "ping";
+import net from "net";
 import prettyMs from "pretty-ms";
 import { RecordId, Surreal } from "surrealdb";
 import z, { ZodType } from "zod";
@@ -21,6 +21,29 @@ type SessionInfo = {
 };
 
 type OwnerVerificationResult = "verified" | "mismatch" | "needs-claim";
+
+/**
+ * Connectivity check via a TCP connect (not ICMP ping). ICMP requires spawning the `ping` binary +
+ * CAP_NET_RAW, which is unreliable inside a hardened systemd sandbox; a plain TCP handshake to a
+ * always-on host:port needs neither. Resolves true if the socket connects within `timeoutMs`.
+ */
+function hasInternet(host = "1.1.1.1", port = 443, timeoutMs = 3000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+    socket.connect(port, host);
+  });
+}
 
 
 
@@ -43,10 +66,10 @@ export default class SurrealDBController extends Controller {
   public override registerConfig(): ZodType | void {
     return z.object({
       database: z.object({
-        uri: z.url().describe("The URI of the SurrealDB server").default("wss://inimicalpart.com:13244"),
+        uri: z.url().describe("The URI of the SurrealDB server").default("wss://inimi.dev:13244"),
         db: z.string().describe("Active database for SurrealDB. Uses the logged in user's username + '-test'. This should be changed to 'main' when running production").default(() => this.defaultDBName()),
         ignoreOwnerMismatch: z.boolean().describe("Whether or not to ignore machine ID mismatches in the database. If this is true, the application will skip checking the machine ID in the database and overwrite it. If false, the application will refuse to operate on the database").default(false),
-      }).default(() => ({ uri: "wss://inimicalpart.com:13244", db: this.defaultDBName(), ignoreOwnerMismatch: false })),
+      }).default(() => ({ uri: "wss://inimi.dev:13244", db: this.defaultDBName(), ignoreOwnerMismatch: false })),
     }) satisfies z.ZodType<Pick<WaiterConfig, "database">>;
   }
 
@@ -65,23 +88,17 @@ export default class SurrealDBController extends Controller {
     const db = new Surreal();
     global.db = db;
 
-    let hasInternet = await ping.promise
-      .probe("1.1.1.1", { timeout: 0.2 })
-      .then((res) => res.alive)
-      .catch(() => false);
+    let online = await hasInternet();
 
-    if (!hasInternet) {
+    if (!online) {
       this.logger.warn(
         chalk.red(
           "No internet connection. Waiting until connection is restored to connect to database.",
         ),
       );
-      while (!hasInternet) {
+      while (!online) {
         await new Promise((res) => setTimeout(res, 5000));
-        hasInternet = await ping.promise
-          .probe("1.1.1.1", { timeout: 0.2 })
-          .then((res) => res.alive)
-          .catch(() => false);
+        online = await hasInternet();
       }
       this.logger.great(chalk.green("Internet connection restored."));
     }
@@ -138,27 +155,24 @@ export default class SurrealDBController extends Controller {
       if (!global.db.isConnected && !attemptingToReconnect) {
         attemptingToReconnect = true;
 
-        if (hasInternet)
+        if (online)
           this.logger.warn(`Lost connection to database. Reconnecting...`);
 
-        const pingResult = await ping.promise
-          .probe("1.1.1.1", { timeout: 0.2 })
-          .then((res) => res.alive)
-          .catch(() => false);
+        const reachable = await hasInternet();
 
-        if (!pingResult) {
-          if (hasInternet)
+        if (!reachable) {
+          if (online)
             this.logger.warn(
               `No internet connection. Skipping database reconnect attempt.`,
             );
-          hasInternet = false;
+          online = false;
           attemptingToReconnect = false;
           return;
         }
 
         await connectToDB(db)
           .then(async () => {
-            hasInternet = true;
+            online = true;
             this.logger.great("Reconnected to database.");
 
             const ownerVerified = await this.verifyOwner();

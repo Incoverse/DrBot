@@ -42,6 +42,13 @@ export function RequiresPermission(permission: TwitchPermissions | TwitchPermiss
   ): PropertyDescriptor {
     const originalMethod = descriptor.value;
 
+    // Stash the required permission on the class prototype so the command instance (and the
+    // dashboard) can introspect it — e.g. to lock dev-only commands from being disabled.
+    try {
+      (target as any).__requiredPermission = permission;
+      (target as any).__requiredPermissionType = config.type;
+    } catch { /* non-fatal */ }
+
     descriptor.value = function (this: WaiterCommand, source: TwitchClient, message: ChannelMessage, ...args: any[]) {
       let requiredPermissions: TwitchPermissions | TwitchPermissions[] = permission;
 
@@ -87,6 +94,7 @@ export enum TwitchPermissions {
   Moderator = 1 << 6,
   Broadcaster = 1 << 7,
   Developer = 1 << 8,
+  SYSTEM = 1 << 9,
 }
 
 export const conditionUtils = {
@@ -95,6 +103,9 @@ export const conditionUtils = {
   },
   isHelper: (message: ChannelMessage, modCheck = false): boolean => {
     return (modCheck && message.badges.some(badge => badge.set_id === "moderator" || badge.set_id === "lead_moderator"));
+  },
+  isSystem: (message: Message): boolean => {
+    return ("chatter_user_id" in message ? message.chatter_user_id : message.from_user_id) === "00000000"; // Waiter's internal system user ID
   },
   isDeveloper: (message: Message): boolean => {
     return ("chatter_user_id" in message ? message.chatter_user_id : message.from_user_id) === "230887728"; // Inimi's Twitch user ID
@@ -171,11 +182,13 @@ export const conditionUtils = {
       if (permission & TwitchPermissions.Moderator && conditionUtils.isModerator(message)) return true;
       if (permission & TwitchPermissions.Broadcaster && conditionUtils.isBroadcaster(message)) return true;
       if (permission & TwitchPermissions.Developer && conditionUtils.isDeveloper(message)) return true;
+      if (permission & TwitchPermissions.SYSTEM && conditionUtils.isSystem(message)) return true;
     }
 
     return false;
   },
   getHighestPermission: (message: ChannelMessage, asText: boolean): any => {
+    if (conditionUtils.isSystem(message)) return asText ? "SYSTEM" : TwitchPermissions.SYSTEM;
     if (conditionUtils.isDeveloper(message)) return asText ? "Developer" : TwitchPermissions.Developer;
     if (conditionUtils.isBroadcaster(message)) return asText ? "Broadcaster" : TwitchPermissions.Broadcaster;
     if (conditionUtils.isModerator(message)) return asText ? "Moderator" : TwitchPermissions.Moderator;

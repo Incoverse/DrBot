@@ -21,6 +21,7 @@ import { parameterize, RequiresPermission, TwitchPermissions } from "../../lib/m
 
 
 export default class BanInAllCMD extends WaiterCommand {
+  public override displayName = "Ban in All Channels";
   public messageTrigger: RegExp = /^!baninall\s+(?<args>.+)$/;
 
   @RequiresPermission(TwitchPermissions.Moderator)

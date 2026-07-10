@@ -25,6 +25,7 @@ import { RequiresPermission, TwitchPermissions } from "../../lib/misc";
 
 
 export default class SpotifyVolumeCMD extends WaiterCommand {
+  public override displayName = "Volume";
   public messageTrigger: RegExp = /^!volume\s*(?<vol>[+-]?\d+)?%?$/;
 
 

@@ -56,6 +56,12 @@ export default class OMCL extends WaiterEvent {
           ...global.twitch.streamerData[streamer.IAM.id],
           lurkedUsers: []
         };
+
+      if (!global.twitch.streamerData[streamer.IAM.id]?.seenThisStream)
+        global.twitch.streamerData[streamer.IAM.id] = {
+          ...global.twitch.streamerData[streamer.IAM.id],
+          seenThisStream: new Map<string, string>()
+        };
     }
 
     return super.setup(clients);
@@ -73,6 +79,7 @@ export default class OMCL extends WaiterEvent {
       
       return
     }
+
 
 
     data = data as ChannelChatMessage;

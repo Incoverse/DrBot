@@ -23,6 +23,7 @@ import { RequiresPermission, TwitchPermissions } from "../lib/misc";
 
 
 export default class ShoutoutCMD extends WaiterCommand {
+  public override displayName = "Shoutout";
     public messageTrigger: RegExp = /^!(so|shoutout)\s+(?<username>[\w\d_@]+)$/;
 
     @RequiresPermission(TwitchPermissions.Helper)

@@ -22,7 +22,8 @@ import { StreamerHasSpotifyLinked, StreamerIsLive } from "../../lib/conditions";
 import { RequiresPermission, TwitchPermissions } from "../../lib/misc";
 
 
-export default class PreviousCMD extends WaiterCommand {
+export default class RepeatCMD extends WaiterCommand {
+  public override displayName = "Repeat Mode";
   public messageTrigger: RegExp = /^!(repeat|loop)\s*(?<type>(track|context|off))?$/;
 
   @RequiresPermission(TwitchPermissions.VIP)

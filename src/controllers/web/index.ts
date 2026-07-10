@@ -7,10 +7,25 @@ import crypto from "crypto";
 import express from "express";
 import { existsSync, readFileSync } from "fs";
 import { createServer } from "http";
+import path from "path";
 import { z, type ZodType } from "zod";
 
-const app = express();
+export const app = express();
 const server = createServer(app);
+
+// Fallback handlers registered via registerFallbackHandler() are inserted before the 404 catch-all.
+// Backed by a globalThis slot rather than plain module state: bun loads this module more than once
+// (the dashboard imports registerFallbackHandler via "../web", which resolves to a different module
+// record than the auto-discovered WebController that owns the live Express app). A plain module-level
+// array would leave the dispatcher reading a different array than registrations push into — so the
+// Next.js handler would never run and every /dashboard + /_next request 404s. The global slot makes
+// all instances share one array.
+const fallbackHandlers: express.RequestHandler[] = ((
+  globalThis as typeof globalThis & { __waiterFallbackHandlers?: express.RequestHandler[] }
+).__waiterFallbackHandlers ??= []);
+export function registerFallbackHandler(handler: express.RequestHandler) {
+  fallbackHandlers.push(handler);
+}
 
 // Middleware to add res.template
 app.use((req, res, next) => {
@@ -28,13 +43,47 @@ const shortenCache = new CacheManager({
 });
 
 
-const toRegister: {
-  call: () => string,
+// globalThis-backed for the SAME reason as __waiterFallbackHandlers above: bun loads web/index more
+// than once, so controllers that `import { registerRoute } from "../web"` (manager, overlay, twitch,
+// spotify) would otherwise push their routes into a DIFFERENT module instance's array than the one
+// the live WebController iterates in exec() — meaning e.g. `/api/v1/manager/release/latest` silently
+// never registers and 404s. Sharing the array via globalThis makes every registration reach the
+// WebController that actually mounts them.
+type RouteRegistration = {
+  call: () => string;
+  method: HTTPMethod;
+  handler: express.RequestHandler;
+  handlerStr: string;
+  ownerClassName: string;
+};
+const toRegister: RouteRegistration[] = ((
+  globalThis as typeof globalThis & { __waiterToRegister?: RouteRegistration[] }
+).__waiterToRegister ??= []);
+
+// Same cross-instance hazard for dynamically-registered overlay routers.
+const overlayRouters: Map<string, express.Router> = ((
+  globalThis as typeof globalThis & { __waiterOverlayRouters?: Map<string, express.Router> }
+).__waiterOverlayRouters ??= new Map());
+
+export function registerOverlayRoute(
+  overlayId: string,
   method: HTTPMethod,
+  subpath: string,
   handler: express.RequestHandler,
-  handlerStr: string,
-  ownerClassName: string,
-}[] = [];
+): () => void {
+  let router = overlayRouters.get(overlayId);
+  if (!router) {
+    router = express.Router();
+    overlayRouters.set(overlayId, router);
+  }
+  let active = true;
+  const guarded: express.RequestHandler = (req, res, next) => {
+    if (active) handler(req, res, next);
+    else next();
+  };
+  (router as any)[method.toLowerCase()](subpath, guarded);
+  return () => { active = false; };
+}
 
 
 
@@ -123,6 +172,30 @@ export default class WebController extends Controller {
         );
       }
 
+
+      if (existsSync(path.resolve(__dirname, "assets"))) {
+        this.logger.debug("Serving static files from:", path.resolve(__dirname, "assets"));
+        app.use(express.static(path.resolve(__dirname, "assets")));
+      }
+
+      // Dynamic overlay-scoped template routes (registered via TemplateServerContext.registerRoute)
+      app.use("/overlay/:overlayId", (req: express.Request, res: express.Response, next: express.NextFunction) => {
+        const overlayId = req.params.overlayId;
+        const router = typeof overlayId === "string" ? overlayRouters.get(overlayId) : undefined;
+        if (router) router(req, res, next);
+        else next();
+      });
+
+      // Dynamic dispatch to fallback handlers registered after WebController starts (e.g. Next.js dashboard)
+      app.use((req, res, next) => {
+        let i = 0;
+        const dispatch = () => {
+          if (i >= fallbackHandlers.length) return next();
+          const handler = fallbackHandlers[i++]!;
+          handler(req, res, dispatch);
+        };
+        dispatch();
+      });
 
       app.use(async (req, res) => {
         this.logger.warn(`No route found for ${req.method} ${req.path}`);

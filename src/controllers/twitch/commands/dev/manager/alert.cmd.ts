@@ -23,6 +23,7 @@ import { parameterize, RequiresPermission, TwitchPermissions } from "@twitch/lib
 
 
 export default class AlertCMD extends WaiterCommand {
+  public override displayName = "Alert";
   public messageTrigger: RegExp = /^!alert\s*(?<args>.*)$/;
 
 

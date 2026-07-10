@@ -12,7 +12,12 @@ export class EncryptedField<T = string> {
   }
 
   private isEncrypted(value: string) {
-    return value.length > 32; // simple heuristic
+    try {
+      decrypt(value);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   set(value: T) {

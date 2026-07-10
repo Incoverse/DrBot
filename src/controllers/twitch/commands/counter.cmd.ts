@@ -21,6 +21,7 @@ import { parameterize, RequiresPermission, TwitchPermissions } from "../lib/misc
 
 
 export default class CounterCMD extends WaiterCommand {
+  public override displayName = "Counter";
   public messageTrigger = (event: ChannelMessage) => {
 
     const streamerData = global.twitch.streamerData[event.broadcaster_user_id!];

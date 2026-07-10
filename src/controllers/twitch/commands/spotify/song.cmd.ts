@@ -23,6 +23,7 @@ import { StreamerHasSpotifyLinked, StreamerIsLive } from "../../lib/conditions";
 
 
 export default class SongCMD extends WaiterCommand {
+  public override displayName = "Current Song";
   public messageTrigger: RegExp = /^!song$/;
 
   public override cooldown: CooldownSystem = new CooldownSystem({

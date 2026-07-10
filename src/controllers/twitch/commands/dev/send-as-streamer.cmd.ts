@@ -21,6 +21,7 @@ import { parameterize, RequiresPermission, TwitchPermissions } from "../../lib/m
 
 
 export default class SendAsStreamerCMD extends WaiterCommand {
+  public override displayName = "Send as Streamer";
   public messageTrigger: RegExp = /^!(send as (streamer|s)|sas|ssay)\s+(?<args>.*)/;
 
   @RequiresPermission(TwitchPermissions.Developer)

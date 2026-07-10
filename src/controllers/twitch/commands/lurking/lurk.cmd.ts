@@ -21,6 +21,7 @@ import { StreamerIsLive } from "../../lib/conditions";
 
 
 export default class LurkCMD extends WaiterCommand {
+  public override displayName = "Lurk";
   public messageTrigger: RegExp = /!lurk/;
 
   public override async setup(clients: TwitchClient[]): Promise<boolean | null> {

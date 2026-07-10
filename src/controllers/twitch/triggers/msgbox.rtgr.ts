@@ -22,6 +22,7 @@ import WaiterReward, { ATCondition } from "../lib/base/WaiterReward";
 import { parameterize } from "../lib/misc";
 
 export default class MessageBoxRTGR extends WaiterRedemptionTrigger {
+  public override displayName = "Message Box";
 
   public settings: RedemptionSettings = {
     type: "internal",
@@ -32,9 +33,10 @@ export default class MessageBoxRTGR extends WaiterRedemptionTrigger {
       enabledByDefault: false,
       cooldown: "30s",
       inputRequired: true,
-      automaticToggle: {
-        condition: ATCondition.MANAGER_CONNECTED
-      }
+      automaticToggle: [
+        { condition: ATCondition.MANAGER_CONNECTED },
+        { condition: ATCondition.STREAM_STARTED }
+      ]
     })
   }
 

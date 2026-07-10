@@ -25,17 +25,38 @@ import { StreamerHasSpotifyLinked, StreamerIsLive } from "../../lib/conditions";
 
 
 export default class PlayCMD extends WaiterCommand {
+  public override displayName = "Play";
   public messageTrigger: RegExp = /^!play\s+(?<args>.+)$/;
 
   public override cooldown: CooldownSystem = new CooldownSystem({
     type: "user",
     cooldownTime: "10s",
+    immunityCheck: (message: ChannelMessage) => {
+      if (message.message_id == "redemption") return true; //? Redemptions should be able to bypass cooldowns since they can be used to trigger internal commands that perform actions like playing songs, so it would be bad if the user had to wait for the cooldown to end before their redemption could take effect.
+      return false;
+    }
   });
 
   @StreamerIsLive() //? <-- Streamer must be live to use the command, since it doesn't make sense to check the currently playing song if the stream isn't live.
   @StreamerHasSpotifyLinked() //? <-- Streamer must have their Spotify account linked to use the command, since we need access to their Spotify data to get the currently playing song.
   @CooldownWrapper() //? <-- Apply the cooldown to prevent spam, since fetching the currently playing song involves making requests to the Spotify API which could potentially be rate limited if abused.
   public async exec(channel: TwitchClient, message: ChannelMessage): Promise<any> {
+    const songRequestBypassed = Array.from(global.twitch.bypasses.values())
+      .filter(b => b.type === "songrequest")
+      .some(b => b.scope === channel.IAM.id || b.scope === "all" || b.scope === null);
+
+    if (!songRequestBypassed) {
+
+      if (channel.config["rtgrSongRequest-installed"] && message.message_id !== "redemption") {
+        //? If the Song Request RTGR is installed, we want to encourage users to use that instead of the !play command, since the RTGR provides a better user experience for song requests and allows for more customization. However, we don't want to prevent users from using the !play command if they prefer it or if the RTGR isn't working for some reason, so we'll just send a message encouraging them to use the RTGR instead of outright blocking the command.
+        await this.bot.channel(channel).sendMessage(`Hey ${message.chatter_user_name}, it looks like the streamer has a dedicated song request redemption set up! Please use that redemption to request songs instead of the !play command for a better experience!`, { replyTo: message });
+        return;
+      }
+    } else {
+      if (channel.config["rtgrSongRequest-installed"] && message.message_id !== "redemption") {
+        this.logger.warn(`Redemption is active, but a bypass is allowing the command to execute.`);
+      }
+    }
 
     const spotify = getSpotifyClient(channel.waiterUserId);
 

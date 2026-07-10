@@ -22,6 +22,7 @@ import * as Moderation from "./funcs/channel/moderation";
 import * as VIP from "./funcs/channel/vip";
 
 import * as Rewards from "./funcs/rewards";
+import * as Schedule from "./funcs/schedule";
 import * as User from "./funcs/user";
 
 import chalk from "chalk";
@@ -363,6 +364,13 @@ export default class TwitchClient {
   private esID: string;
   private eventsubConnected = false;
   private connectEventSub: boolean = true;
+  // Per-instance EventSub URL (NOT module-scope — a shared URL let one streamer's reconnect
+  // corrupt every other client's next connect). Reset to default after a reconnect completes.
+  private eventSubURL: string = "wss://eventsub.wss.twitch.tv/ws";
+  // Reconnect backoff (prevents a tight reconnect loop that re-subscribes on every welcome →
+  // Twitch 429 "subscriptions total cost exceeded"). Reset on a successful welcome.
+  private reconnectAttempts = 0;
+  private reconnectTimer: NodeJS.Timeout | null = null;
   private eventSubData: {
     id: string, 
     type: ValidTopics;
@@ -581,7 +589,7 @@ export default class TwitchClient {
   public async connect() {
     if (this.eventsubWS?.readyState !== WebSocket.OPEN && this.connectEventSub) {
       this.logger.debug("Initiating connection to Twitch EventSub...");
-      this.eventsubWS = new WebSocket(eventSubConnURL);
+      this.eventsubWS = new WebSocket(this.eventSubURL);
 
       this.eventsubWS.onopen = () => {
         this.logger.success("Successfully connected to Twitch EventSub");
@@ -595,6 +603,7 @@ export default class TwitchClient {
         const msgType = jsonified.metadata.message_type
 
         if (msgType === "session_welcome") {
+          this.reconnectAttempts = 0; // healthy connection — reset backoff
           this.events.emit("welcomed", this, jsonified.payload);
           this.esID = jsonified.payload.session.id
           this.ESKATimeout = jsonified.payload.session.keepalive_timeout_seconds * 1000;
@@ -623,8 +632,8 @@ export default class TwitchClient {
           this.logger.warn("A revocation message was received regarding event type: " + jsonified.metadata.subscription_type);
         } else if (msgType === "session_reconnect") {
           this.logger.warn("Server requested a reconnect");
-          let originalURL = eventSubConnURL;
-          eventSubConnURL = jsonified.payload.session.reconnect_url || eventSubConnURL;
+          const originalURL = this.eventSubURL;
+          this.eventSubURL = jsonified.payload.session.reconnect_url || this.eventSubURL;
           const old = this.eventsubWS;
 
           this.eventsubWS = null
@@ -633,7 +642,7 @@ export default class TwitchClient {
           this.events.once("welcomed", (client, data) => {
             old?.removeAllListeners();
             old?.close(1000, "Reconnecting");
-            eventSubConnURL = originalURL;
+            this.eventSubURL = originalURL;
             this.logger.success("Reconnect complete");
           })
 
@@ -646,10 +655,19 @@ export default class TwitchClient {
         this.logger.warn(`Disconnected from Twitch EventSub - (${c.code}) ${c.reason}`);
         this.eventsubConnected = false;
         this.eventsubWS?.removeAllListeners();
-        
+
         if (this.connectEventSub) {
-          this.logger.log("Attempting to reconnect to Twitch EventSub...");
-          this.connect();
+          // Exponential backoff with jitter — a tight reconnect loop re-subscribes on every
+          // welcome and trips Twitch's 429 "subscriptions total cost exceeded". Cap at 30s.
+          if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+          const attempt = this.reconnectAttempts++;
+          const base = Math.min(30000, 1000 * Math.pow(2, Math.min(attempt, 5)));
+          const delay = Math.round(base * (0.5 + Math.random() * 0.5));
+          this.logger.log(`Reconnecting to Twitch EventSub in ${(delay / 1000).toFixed(1)}s (attempt ${attempt + 1})...`);
+          this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            this.connect();
+          }, delay);
         }
       }
 
@@ -660,14 +678,21 @@ export default class TwitchClient {
     }
   }
 
-  public async awaitConnection() {
+  public async awaitConnection(timeoutMs = 30000) {
     if ((this.eventsubConnected || !this.connectEventSub)) {
       return true;
     }
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
+      const started = Date.now();
       const interval = setInterval(() => {
         if ((this.eventsubConnected || !this.connectEventSub)) {
           clearInterval(interval);
+          resolve();
+        } else if (Date.now() - started > timeoutMs) {
+          // Don't block setup forever if EventSub never connects — resolve and let the caller
+          // proceed; the reconnect loop keeps trying in the background.
+          clearInterval(interval);
+          this.logger.warn(`awaitConnection timed out after ${timeoutMs / 1000}s — continuing without a confirmed EventSub connection.`);
           resolve();
         }
       }, 1000);
@@ -1112,12 +1137,17 @@ export default class TwitchClient {
   public completeRedemption = this.bindChannelFn(Rewards.completeRedemption)
   /** Get the custom rewards for a channel. */
   public getRewards = this.bindChannelFn(Rewards.getRewards)
+  /** Get redemptions for a custom reward, optionally filtered by status (defaults to UNFULFILLED). */
+  public getRedemptions = this.bindChannelFn(Rewards.getRedemptions)
   /** Update a custom reward. */
   public updateReward = this.bindChannelFn(Rewards.updateReward)
   /** Create a custom reward. */
   public createReward = this.bindChannelFn(Rewards.createReward)
   /** Delete a custom reward. */
   public deleteReward = this.bindChannelFn(Rewards.deleteReward)
+
+  /** Get the authenticated broadcaster's stream schedule. Returns null when no schedule exists. */
+  public getStreamSchedule = this.bindChannelFn(Schedule.getStreamSchedule)
 
 
   public fetchUser = async (idLogin?: string): Promise<TwitchUser | null> => {

@@ -23,6 +23,7 @@ import { StreamerHasSpotifyLinked, StreamerIsLive } from "../../lib/conditions";
 
 
 export default class PauseCMD extends WaiterCommand {
+  public override displayName = "Pause";
   public messageTrigger: RegExp = /^!pause$/;
 
   @RequiresPermission(TwitchPermissions.VIP)

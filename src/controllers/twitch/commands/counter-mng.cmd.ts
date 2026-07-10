@@ -22,6 +22,7 @@ import { parameterize } from "../lib/misc";
 
 
 export default class CounterMngCMD extends WaiterCommand {
+  public override displayName = "Counter Manager";
   public messageTrigger: RegExp = /^!counter\s+(?<action>add|remove|modify)\s+(?<args>.+)$/;
 
     public override async setup(clients: TwitchClient[], reason?: "initial" | "catch-up" | "other"): Promise<boolean | null> {
@@ -51,8 +52,15 @@ export default class CounterMngCMD extends WaiterCommand {
         });
 
         
-        for (const counterData of counters) {
-          const counter = new Counter(client, counterData as CounterRecord);
+        for (const counterData of counters as any[]) {
+          const counter = new Counter(client, {
+            id: counterData.id as RecordId,
+            streamer: counterData.streamer as RecordId ?? new RecordId("users", client.waiterUserId),
+            name: counterData.name,
+            value: counterData.value,
+            singular: counterData.singular,
+            plural: counterData.plural,
+          } as CounterRecord);
 
           global.twitch.streamerData[client.IAM.id]!.counters!.set(counter.name, counter);
         }
@@ -188,6 +196,7 @@ export default class CounterMngCMD extends WaiterCommand {
 }
 type CounterRecord = {
   id: RecordId;
+  streamer: RecordId;
   name: string;
   value: number;
   singular: string;
@@ -197,45 +206,38 @@ type CounterRecord = {
 
 export class Counter {
 
+  private persistField(field: "value" | "name" | "singular" | "plural", value: number | string, nameOverride: string = this.data.name) {
+    const query = `UPDATE counters SET ${field} = $value WHERE streamer = $streamer AND name = $name`;
+    const params = { streamer: this.data.streamer, name: nameOverride, value };
+
+    return global.db.query(query, params).catch(err => {
+      this.streamer.logger.error(`Error updating counter ${field} for counter`, this.data.name, `with new ${field}`, value, err);
+    });
+  }
+
   get value() { return this.data.value }
   set value(newValue: number) {
     this.data.value = newValue;
-    global.db.query(`UPDATE $id SET value = $value`, {
-      id: this.data.id,
-      value: newValue
-    }).catch(err => {
-      this.streamer.logger.error("Error updating counter value for counter", this.data.name, "with new value", newValue, err);
-    });
+    void this.persistField("value", newValue);
   }
 
   get name() { return this.data.name }
   set name(newName: string) {
-    global.db.query(`UPDATE $id SET name = $name`, {
-      id: this.data.id,
-      name: newName
-    }).catch(err => {
-      this.streamer.logger.error("Error updating counter name for counter", this.data.name, "with new name", newName, err);
-    });
+    const currentName = this.data.name;
+    this.data.name = newName;
+    void this.persistField("name", newName, currentName);
   }
 
   get singular() { return this.data.singular }
   set singular(newSingular: string) {
-    global.db.query(`UPDATE $id SET singular = $singular`, {
-      id: this.data.id,
-      singular: newSingular
-    }).catch(err => {
-      this.streamer.logger.error("Error updating counter singular for counter", this.data.name, "with new singular", newSingular, err);
-    });
+    this.data.singular = newSingular;
+    void this.persistField("singular", newSingular);
   }
 
   get plural() { return this.data.plural }
   set plural(newPlural: string) {
-    global.db.query(`UPDATE $id SET plural = $plural`, {
-      id: this.data.id,
-      plural: newPlural
-    }).catch(err => {
-      this.streamer.logger.error("Error updating counter plural for counter", this.data.name, "with new plural", newPlural, err);
-    });
+    this.data.plural = newPlural;
+    void this.persistField("plural", newPlural);
   }
 
   constructor(public streamer: TwitchClient, public data: CounterRecord) {}

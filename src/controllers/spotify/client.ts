@@ -1,3 +1,4 @@
+import WebSocket from "ws";
 import { EncryptedField } from "@/lib/enc-field";
 import { findFiles, schedule } from "@/lib/misc";
 import type { AxiosInstance } from "axios";
@@ -46,6 +47,12 @@ export default class SpotifyClient {
     country: string; // SE
   }
 
+  public currentPlaybackState: unknown = null;
+  private dealerWs: WebSocket | null = null;
+  private dealerPingTimer: ReturnType<typeof setInterval> | null = null;
+  private _dealerRetryScheduled = false;
+  private _managerConnectHandler: ((data: any) => void) | null = null;
+
   @schedule("*/5 * * * *")
   public static cleanOldCodes() {
     return global.db.query("DELETE spotify_auth_codes WHERE expires_at < time::now();");
@@ -56,6 +63,7 @@ export default class SpotifyClient {
   public static async create(auth: SpotifyAuthDB, wuId: string): Promise<SpotifyClient> {
     const client = new SpotifyClient(auth, wuId);
     await client.initialize();
+    void client.startDealer();
     return client;
   }
   
@@ -234,7 +242,272 @@ export default class SpotifyClient {
     return this.IAM.product === "premium";
   }
   
-  public async cleanup() {}
+  public async cleanup() {
+    if (this._managerConnectHandler && global.manager?.communication) {
+      global.manager.communication.off("manager.client_connected", this._managerConnectHandler);
+      this._managerConnectHandler = null;
+    }
+    if (this.dealerPingTimer) {
+      clearInterval(this.dealerPingTimer);
+      this.dealerPingTimer = null;
+    }
+    if (this.dealerWs) {
+      this.dealerWs.close();
+      this.dealerWs = null;
+    }
+  }
+
+  // ─── Dealer (real-time Spotify playback events via Discord-linked token) ───
+
+  public async startDealer(): Promise<void> {
+    if (this.dealerWs) {
+      this.logger.debug("Dealer WS already running.");
+      return;
+    }
+
+    this.logger.debug("Starting Spotify dealer...");
+
+    let discordToken = await this.loadDiscordToken();
+    let spotifyDealerToken: string | null = null;
+
+    if (discordToken) {
+      spotifyDealerToken = await this.getSpotifyDealerToken(discordToken);
+      if (!spotifyDealerToken) {
+        this.logger.warn("Stored Discord token is no longer valid. Clearing.");
+        await this.clearDiscordToken();
+        discordToken = null;
+      }
+    }
+
+    if (!spotifyDealerToken) {
+      discordToken = await this.requestDiscordTokenFromManager();
+      if (!discordToken) {
+        this.logger.warn("No manager connected. Dealer will start when manager connects for this user.");
+        this.scheduleDealerRetryOnManagerConnect();
+        return;
+      }
+
+      spotifyDealerToken = await this.getSpotifyDealerToken(discordToken);
+      if (!spotifyDealerToken) {
+        this.logger.warn("Discord token from manager has no active linked Spotify account.");
+        return;
+      }
+
+      await this.storeDiscordToken(discordToken);
+      this.logger.debug("Discord token obtained from manager and stored.");
+    }
+
+    this._dealerRetryScheduled = false;
+    this.connectDealer(spotifyDealerToken);
+  }
+
+  private scheduleDealerRetryOnManagerConnect(): void {
+    if (this._dealerRetryScheduled) return;
+    this._dealerRetryScheduled = true;
+
+    const trySubscribe = () => {
+      if (!global.manager?.communication) {
+        setTimeout(trySubscribe, 1000);
+        return;
+      }
+      this._managerConnectHandler = (data: any) => {
+        this.logger.debug(`[dealer] manager.client_connected fired (wuid=${data.wuid}, expected=${this.waiterUserId}, dealerRunning=${!!this.dealerWs})`);
+        if (data.wuid === this.waiterUserId && !this.dealerWs) {
+          this._dealerRetryScheduled = false;
+          void this.startDealer();
+        }
+      };
+      global.manager.communication.on("manager.client_connected", this._managerConnectHandler);
+      this.logger.debug("Dealer retry registered on manager.client_connected.");
+    };
+
+    trySubscribe();
+  }
+
+  private async requestDiscordTokenFromManager(): Promise<string | null> {
+    const allClients = [...(global.manager?.clients ?? [])];
+    this.logger.debug(`[dealer] Manager clients online: ${allClients.length} (looking for wuid=${this.waiterUserId})`);
+    const managerClient = allClients.find(c => c.waiterUserId === this.waiterUserId);
+    if (!managerClient) {
+      this.logger.warn(`[dealer] No manager client connected for this user (wuid=${this.waiterUserId}).`);
+      return null;
+    }
+
+    this.logger.debug("[dealer] Manager found. Checking AllowDiscordTokenRetrieval...");
+    const allowed = await managerClient.isDiscordTokenAllowed();
+    this.logger.debug(`[dealer] isDiscordTokenAllowed = ${allowed}`);
+    if (!allowed) {
+      this.logger.warn("[dealer] Manager has Discord token retrieval disabled.");
+      return null;
+    }
+
+    this.logger.debug("[dealer] Requesting Discord token from manager...");
+    const token = await managerClient.getDiscordToken() ?? null;
+    this.logger.debug(`[dealer] getDiscordToken returned: ${token ? `<token length=${token.length}>` : "null"}`);
+    return token;
+  }
+
+  private async getSpotifyDealerToken(discordToken: string): Promise<string | null> {
+    this.logger.debug("[dealer] Fetching Discord connections to find Spotify token...");
+    try {
+      const res = await fetch("https://discord.com/api/v9/users/@me/connections", {
+        headers: { Authorization: discordToken },
+      });
+      this.logger.debug(`[dealer] Discord connections response: ${res.status}`);
+      if (!res.ok) {
+        this.logger.warn(`[dealer] Discord connections request failed: ${res.status}`);
+        return null;
+      }
+      const connections = await res.json() as Array<{ type: string; access_token?: string; revoked?: boolean }>;
+      this.logger.debug(`[dealer] Discord connections: ${connections.map(c => `${c.type}(revoked=${c.revoked})`).join(", ")}`);
+      const spotify = connections.find(c => c.type === "spotify" && !c.revoked);
+      if (!spotify?.access_token) {
+        this.logger.warn("[dealer] No active Spotify connection found on Discord account.");
+        return null;
+      }
+      this.logger.debug("[dealer] Found Spotify connection with access_token.");
+      return spotify.access_token;
+    } catch (err) {
+      this.logger.error("[dealer] Error fetching Discord connections:", err);
+      return null;
+    }
+  }
+
+  private async loadDiscordToken(): Promise<string | null> {
+    const result = await global.db.query(
+      "SELECT auth FROM streamer_tokens WHERE streamer = $streamerId AND type = 'discord_spotify'",
+      { streamerId: new RecordId("users", this.waiterUserId) },
+    ).collect().then(r => (r[0] as any[])[0] as { auth?: string } | undefined);
+
+    if (!result?.auth) {
+      this.logger.debug("[dealer] No Discord token stored in DB.");
+      return null;
+    }
+    const discordToken = EncryptedField.fromDB<string>(result.auth).get();
+    this.logger.debug(`[dealer] Loaded Discord token from DB (${discordToken ? "valid" : "decrypt failed"}).`);
+    return discordToken;
+  }
+
+  private async storeDiscordToken(discordToken: string): Promise<void> {
+    const encrypted = new EncryptedField(discordToken);
+    const encryptedStr = encrypted.toDB();
+    // UPDATE first; if no rows matched, INSERT.
+    const updated = await global.db.query(
+      "UPDATE streamer_tokens SET auth = $discordToken WHERE streamer = $streamerId AND type = 'discord_spotify' RETURN AFTER",
+      { streamerId: new RecordId("users", this.waiterUserId), discordToken: encryptedStr },
+    ).collect().then(r => (r[0] as any[]).length > 0);
+
+    if (!updated) {
+      await global.db.query(
+        "INSERT INTO streamer_tokens (streamer, type, auth) VALUES ($streamerId, 'discord_spotify', $discordToken)",
+        { streamerId: new RecordId("users", this.waiterUserId), discordToken: encryptedStr },
+      );
+    }
+  }
+
+  private async clearDiscordToken(): Promise<void> {
+    await global.db.query(
+      "DELETE streamer_tokens WHERE streamer = $streamerId AND type = 'discord_spotify'",
+      { streamerId: new RecordId("users", this.waiterUserId) },
+    );
+  }
+
+  private connectDealer(spotifyToken: string): void {
+    const url = `wss://dealer.spotify.com/?access_token=${encodeURIComponent(spotifyToken)}`;
+    this.logger.debug("Connecting to Spotify dealer WS...");
+
+    const ws = new WebSocket(url, {
+      headers: {
+        Origin: "https://open.spotify.com",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    this.dealerWs = ws;
+
+    ws.on("open", () => {
+      this.logger.debug("Dealer WS connected.");
+      this.dealerPingTimer = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "ping" }));
+        }
+      }, 30_000);
+    });
+
+    ws.on("message", async (raw: Buffer) => {
+      let msg: any;
+      try { msg = JSON.parse(raw.toString("utf-8")); } catch { return; }
+
+      if (msg.type === "pong") return;
+
+      if (msg.type === "message" && (msg.uri as string | undefined)?.startsWith("hm://pusher/v1/connections/")) {
+        const connectionId = msg.headers?.["Spotify-Connection-Id"] as string | undefined;
+        if (connectionId) await this.registerDealerConnection(connectionId, spotifyToken);
+        return;
+      }
+
+      const state = msg?.payloads?.[0]?.events?.[0]?.event?.state;
+      if (state) {
+        const track = (state as any)?.item;
+        this.logger.debug(`[dealer] Playback event: is_playing=${(state as any).is_playing}, track="${track?.name ?? "none"}"`);
+        this.currentPlaybackState = state;
+        this.pushPlaybackStateToOverlays(state);
+        global.spotify.communication.emit("spotify.playback.state", {
+          waiterUserId: this.waiterUserId,
+          state,
+        });
+      } else {
+        this.logger.debug(`[dealer] Non-state message: type=${msg.type} uri=${msg.uri ?? "(none)"}`);
+      }
+    });
+
+    ws.on("error", (err: Error) => {
+      this.logger.error("Dealer WS error:", err.message);
+
+      // Bun's ws shim doesn't surface the rejected handshake status, so probe the dealer over
+      // plain HTTPS to recover it (dealer auth-checks the token before the WS upgrade).
+      fetch(`https://dealer.spotify.com/?access_token=${encodeURIComponent(spotifyToken)}`)
+        .then((res) => {
+          this.logger.error(`Dealer handshake rejected: HTTP ${res.status} ${res.statusText}.`);
+        })
+        .catch((probeErr) => {
+          this.logger.debug("Dealer preflight probe failed:", (probeErr as Error).message);
+        });
+    });
+
+    ws.on("close", () => {
+      this.logger.warn("Dealer WS closed.");
+      if (this.dealerPingTimer) {
+        clearInterval(this.dealerPingTimer);
+        this.dealerPingTimer = null;
+      }
+      if (this.dealerWs === ws) this.dealerWs = null;
+    });
+  }
+
+  private async registerDealerConnection(connectionId: string, spotifyToken: string): Promise<void> {
+    try {
+      const res = await fetch(
+        `https://api.spotify.com/v1/me/notifications/player?connection_id=${encodeURIComponent(connectionId)}`,
+        { method: "PUT", headers: { Authorization: `Bearer ${spotifyToken}` } },
+      );
+      if (res.ok || res.status === 204) {
+        this.logger.debug(`Dealer registered (${res.status}). Listening for playback events.`);
+      } else {
+        const body = await res.text().catch(() => "");
+        this.logger.warn(`Dealer registration failed (${res.status})${body ? `: ${body.slice(0, 200)}` : ""}`);
+      }
+    } catch (err) {
+      this.logger.error("Error registering dealer connection:", err);
+    }
+  }
+
+  private pushPlaybackStateToOverlays(state: unknown): void {
+    const overlayClients = [...(global.overlay?.clients?.values() ?? [])].filter(c => c.waiterUserId === this.waiterUserId);
+    this.logger.debug(`[dealer] Pushing playback state to ${overlayClients.length} overlay client(s).`);
+    for (const client of overlayClients) {
+      client.pushSpotifyState(state);
+    }
+  }
 
   // TODO: Move this out of client.ts and place it in index.ts (SpotifyController)
   @registerRoute("GET", () => global.config.spotify.authEndpoint)

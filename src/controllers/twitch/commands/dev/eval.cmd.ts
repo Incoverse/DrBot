@@ -21,6 +21,7 @@ import { RequiresPermission, TwitchPermissions } from "../../lib/misc";
 
 
 export default class EvalCMD extends WaiterCommand {
+  public override displayName = "Eval";
   public messageTrigger: RegExp = /^!eval\s+(?<exec>.+)$/;
 
   @RequiresPermission(TwitchPermissions.Developer)

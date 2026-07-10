@@ -18,6 +18,7 @@ import fs from "fs/promises";
 import path from "path";
 import { IEM } from "./lib/iem";
 import { resolveTrustedRuntimeIdentity } from "./lib/runtime-identity";
+import { runShutdown } from "./lib/shutdown";
 
 import chalk from "chalk";
 import {
@@ -34,6 +35,8 @@ import { fileURLToPath } from "url";
 import z, { ZodObject } from "zod";
 import { Controller } from "./lib/base/controller";
 import { deepMergeSchemas, extendsClass, findFiles, importLocalModule, type DeepRequired } from "./lib/misc";
+import { initConfigPersistence, deepMergeConfig } from "./lib/configPersist";
+import "./lib/waiterApi"; // registers global.waiter — unified programmatic facade over every dashboard capability
 const __filename = fileURLToPath(import.meta.url);
 
 global.controllers = new Map();
@@ -60,6 +63,17 @@ process.on("warning", (warning) => {
 
   console.warn(warning);
 });
+
+let sigintCount = 0;
+process.on("SIGINT", () => {
+  sigintCount++;
+  if (sigintCount >= 2) {
+    console.warn("Force exit (double Ctrl+C)");
+    process.exit(1);
+  }
+  void runShutdown();
+});
+process.on("SIGTERM", () => void runShutdown());
 
 dotenv.config({ quiet: true });
 
@@ -168,7 +182,14 @@ if (config == "IMPORT_ERROR") {
   process.exit(1);
 }
 
-const parseResult = configSchema.safeParse(config);
+// Deep-merge the persisted runtime override layer (config.overrides.json) on top of the authored
+// config module before validation, so runtime edits via global.persistConfig survive restarts.
+const configOverrides = await initConfigPersistence(configFile);
+const mergedConfig = (config && typeof config === "object" && !Array.isArray(config))
+  ? deepMergeConfig(structuredClone(config), configOverrides)
+  : config;
+
+const parseResult = configSchema.safeParse(mergedConfig);
 
 if (!parseResult.success) {
   console.log();

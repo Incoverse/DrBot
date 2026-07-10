@@ -19,6 +19,7 @@ import WaiterCommand, { type ChannelMessage } from "@twitch/lib/base/WaiterComma
 import type TwitchClient from "../client";
 
 export default class FollowersCMD extends WaiterCommand {
+  public override displayName = "Followers";
     public messageTrigger: RegExp = /^!followers$/;
 
     public async exec(channel: TwitchClient, message: ChannelMessage): Promise<any> {

@@ -23,6 +23,7 @@ import { RequiresPermission, TwitchPermissions } from "../../lib/misc";
 
 
 export default class SkipCMD extends WaiterCommand {
+  public override displayName = "Skip Song";
   public messageTrigger: RegExp = /^!skip$/;
 
   @RequiresPermission(TwitchPermissions.VIP)

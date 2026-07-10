@@ -4,6 +4,7 @@ import { RequiresPermission, TwitchPermissions } from "@/controllers/twitch/lib/
 
 
 export default class VipCMD extends WaiterCommand {
+  public override displayName = "VIP";
   public messageTrigger: RegExp = /^!vip\s+(?<username>\w+)$/;
 
 

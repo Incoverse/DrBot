@@ -6,6 +6,7 @@ import {
 import { readFileSync } from "fs";
 import path from "path";
 import { WaiterCommand } from "../lib/base/WaiterCommand";
+import { isOwner } from "../lib/permissions";
 export default class Version extends WaiterCommand {
   protected _slashCommand = new SlashCommandBuilder()
     .setName("version")
@@ -18,7 +19,12 @@ export default class Version extends WaiterCommand {
     ).version;
 
     await interaction.reply({
-      content: `Waiter is currently running \`\`v${version}\`\``,
+      content:
+        `Waiter is currently running \`\`v${version}\`\`` +
+        //? Owner-only: append Waiter's unique machine identifier (faithful to DrBot's global.identifier line)
+        (isOwner(interaction.user.id)
+          ? `\nWaiter's unique identifier is \`\`${global.machineId}\`\``
+          : ""),
       flags: MessageFlags.Ephemeral,
     });
   }

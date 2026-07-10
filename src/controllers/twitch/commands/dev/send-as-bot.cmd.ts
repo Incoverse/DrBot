@@ -21,6 +21,7 @@ import { parameterize, RequiresPermission, TwitchPermissions } from "../../lib/m
 
 
 export default class SendAsBotCMD extends WaiterCommand {
+  public override displayName = "Send as Bot";
   public messageTrigger: RegExp = /^!(send as (bot|s)|sab|bsay)\s+(?<args>.*)/;
 
   @RequiresPermission(TwitchPermissions.Developer)

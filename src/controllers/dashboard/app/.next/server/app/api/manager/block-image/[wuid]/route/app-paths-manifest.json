@@ -1,0 +1,3 @@
+{
+  "/api/manager/block-image/[wuid]/route": "app/api/manager/block-image/[wuid]/route.js"
+}

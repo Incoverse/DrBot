@@ -51,6 +51,7 @@ export const EnvironmentManager = {
       data = `${key.trim()}="${value}"`;
     }
     fs.writeFileSync(ENV_FILE, data, "utf-8");
+    console.withSender("ENVM").debug(`Set environment variable: ${key}=${value}`);
   },
 
   delete(...keys: string[]) {
@@ -66,11 +67,13 @@ export const EnvironmentManager = {
     });
     data = newLines.join("\n");
     fs.writeFileSync(ENV_FILE, data, "utf-8");
+    console.withSender("ENVM").debug(`Deleted environment variables: ${keys.join(", ")}`)
   },
 
   clear() {
     if (fs.existsSync(ENV_FILE)) {
       fs.unlinkSync(ENV_FILE);
+      console.withSender("ENVM").debug("Cleared all environment variables.");
     }
   },
 };

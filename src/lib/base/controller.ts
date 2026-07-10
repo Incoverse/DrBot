@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import type { ZodSchema } from "zod";
+import { registerShutdownInstance } from "@/lib/shutdown";
 
 export abstract class Controller {
   public logger: Console;
@@ -11,6 +12,7 @@ export abstract class Controller {
   constructor(abbr: string, hex?: string) {
     this.abbr = abbr;
     this.logger = console.withSender(hex ? chalk.hex(hex)(abbr) : abbr);
+    registerShutdownInstance(this);
   }
 
   /**

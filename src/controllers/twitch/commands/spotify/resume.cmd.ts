@@ -23,6 +23,7 @@ import { StreamerHasSpotifyLinked, StreamerIsLive } from "../../lib/conditions";
 
 
 export default class ResumeCMD extends WaiterCommand {
+  public override displayName = "Resume";
   public messageTrigger: RegExp = /^!resume$/;
 
   @RequiresPermission(TwitchPermissions.VIP)

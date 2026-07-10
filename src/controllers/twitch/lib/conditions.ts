@@ -119,6 +119,39 @@ export function StreamerHasManagerConnected(silent: boolean = true) {
   }
 }
 
+export function StreamerHasOBSConnected(silent: boolean = true) {
+  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+    const originalMethod = descriptor.value;
+
+    descriptor.value = async function (
+      this: WaiterCommand,
+      source: TwitchClient, message: ChannelMessage, ...args: any[]
+    ) {
+      const managerClient = getManagerClient(source.waiterUserId);
+      if (!managerClient) {
+        this.logger.debug(`Command is being blocked because streamer ${source.IAM.display_name} (ID: ${source.IAM.id}) does not have the Manager connected, so we cannot check for OBS.`);
+        if (!silent) {
+          await this.bot.channel(source).sendMessage(`${message.broadcaster_user_name} must connect their Manager to Waiter for this command to be available.`, { replyTo: message });
+        }
+        return;
+      }
+
+      const obsClient = managerClient.obs;
+      if (!obsClient ) {
+        this.logger.debug(`Command is being blocked because streamer ${source.IAM.display_name} (ID: ${source.IAM.id}) does not have OBS connected through their Manager.`);
+        if (!silent) {
+          await this.bot.channel(source).sendMessage(`${message.broadcaster_user_name} must connect OBS to their Manager for this command to be available.`, { replyTo: message });
+        }
+        return;
+      }
+
+      return originalMethod.apply(this, [source, message, ...args]);
+    };
+
+    return descriptor;
+  }
+}
+
 /** Decorator for checking if a streamer is either an affiliate or a partner (meaning they're monetized) */
 export function StreamerIsMonetized(silent: boolean = true) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {

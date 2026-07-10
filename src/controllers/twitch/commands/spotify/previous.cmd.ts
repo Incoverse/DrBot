@@ -23,6 +23,7 @@ import { RequiresPermission, TwitchPermissions } from "../../lib/misc";
 
 
 export default class PreviousCMD extends WaiterCommand {
+  public override displayName = "Previous Song";
   public messageTrigger: RegExp = /^!previous$/;
 
   @RequiresPermission(TwitchPermissions.VIP)

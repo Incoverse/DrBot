@@ -27,6 +27,7 @@ import { UserIsRegisteredStreamer } from "../lib/conditions";
 
 const scope: CommandScope = "dm"
 export default class SetupSpotifyCMD extends WaiterCommand<typeof scope> {
+  public override displayName = "Setup Spotify";
   public messageTrigger: RegExp = /^!setup\s+spotify$/;
 
   public override cooldown: CooldownSystem = new CooldownSystem({

@@ -10,6 +10,10 @@ export async function send(this: ChannelSpecificWrapper, message: string, {reply
     replyTo = replyTo.message_id;
   }
 
+  if (replyTo == "redemption") {
+    replyTo = undefined; // Twitch doesn't allow replying to redemptions, so we'll just ignore the replyTo parameter in this case.
+  }
+
   let api = this.twcl.api;
 
   if (
@@ -30,7 +34,7 @@ export async function send(this: ChannelSpecificWrapper, message: string, {reply
     message: msg,
     broadcaster_id: this.channelId,
     sender_id: this.twcl.IAM.id,
-    for_source_only: sourceOnly,
+    ...(this.twcl.isBot ? { for_source_only: sourceOnly } : {}),
     ...(replyTo ? {reply_parent_message_id: replyTo} : {}),
   }).then(ResDataData0).catch(() => false);
 };

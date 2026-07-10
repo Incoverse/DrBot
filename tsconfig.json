@@ -37,7 +37,9 @@
       "@spotify/*": ["./src/controllers/spotify/*"],
       "@discord/*": ["./src/controllers/discord/*"],
       "@manager/*": ["./src/controllers/manager/*"],
+      "@overlay/*": ["./src/controllers/overlay/*"],
     }
   },
-  "include": ["src", "src/**/*.d.ts"]
+  "include": ["src", "src/**/*.d.ts"],
+  "exclude": ["src/controllers/dashboard/app"]
 }

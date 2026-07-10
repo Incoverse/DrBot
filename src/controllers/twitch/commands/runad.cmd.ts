@@ -23,6 +23,7 @@ import { RequiresPermission, TwitchPermissions } from "../lib/misc";
 
 
 export default class RunAdCMD extends WaiterCommand {
+  public override displayName = "Run Ad";
   public messageTrigger: RegExp = /^!run-?ad\s+(?<time>.+)$/;
 
   @RequiresPermission(TwitchPermissions.Moderator)

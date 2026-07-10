@@ -21,6 +21,7 @@ import CooldownSystem, { CooldownWrapper } from "@twitch/lib/cooldown";
 
 
 export default class PingCMD extends WaiterCommand {
+  public override displayName = "Ping";
   public messageTrigger: RegExp = /^!ping$/;
 
   public override cooldown: CooldownSystem = new CooldownSystem({

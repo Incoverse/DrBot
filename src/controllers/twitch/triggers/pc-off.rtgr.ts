@@ -23,6 +23,7 @@ import WaiterReward, { ATCondition } from "../lib/base/WaiterReward";
 const oneIn = 1000
 
 export default class TurnOFFPCChanceRTGR extends WaiterRedemptionTrigger {
+  public override displayName = "Turn Off PC";
 
   public settings: RedemptionSettings = {
     type: "internal",
@@ -33,9 +34,10 @@ export default class TurnOFFPCChanceRTGR extends WaiterRedemptionTrigger {
       enabledByDefault: false,
       cooldown: "30s",
       inputRequired: true,
-      automaticToggle: {
-        condition: ATCondition.MANAGER_CONNECTED
-      }
+      automaticToggle: [
+        { condition: ATCondition.MANAGER_CONNECTED },
+        { condition: ATCondition.STREAM_STARTED }
+      ]
     })
   }
 
@@ -56,6 +58,8 @@ export default class TurnOFFPCChanceRTGR extends WaiterRedemptionTrigger {
     }
 
     const chance = Math.floor(Math.random() * (oneIn)) + 1;
+
+    await streamer.completeRedemption(data.redemption.id, data.reward_id);
 
     if (input === chance) {
       this.bot.channel(streamer).announce(`Congratulations ${data.redeemer.display_name}! ${streamer.IAM.display_name}'s PC is now turning off!`);

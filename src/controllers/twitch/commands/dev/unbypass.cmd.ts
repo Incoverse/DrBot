@@ -21,6 +21,7 @@ import { parameterize, RequiresPermission, TwitchPermissions } from "../../lib/m
 
 
 export default class UnbypassCMD extends WaiterCommand {
+  public override displayName = "Unbypass";
   public messageTrigger: RegExp = /^!unbypass\s+(?<args>.*)/;
 
   @RequiresPermission(TwitchPermissions.Developer)
@@ -45,7 +46,7 @@ export default class UnbypassCMD extends WaiterCommand {
     let noBypassMessage = `No bypass found with type "${unbypassArgs.type}"${unbypassArgs.scope ? ` and scope "${unbypassArgs.scope}"` : ""}.`;
 
     switch (unbypassArgs.type) {
-      case "live":
+      case "live": {
 
         let scope = bypass?.scope || unbypassArgs.scope || null;
 
@@ -54,6 +55,17 @@ export default class UnbypassCMD extends WaiterCommand {
         removedBypassMessage = `Removed bypass for live status checks for ${bypass?.scope == "all" ? "all streamers" : `${user?.display_name || `streamer with ID "${bypass?.scope}"`}`}.`;
         noBypassMessage = `No bypass found for live status checks for ${unbypassArgs.scope == "all" ? "all streamers" : `${user?.display_name || `streamer with ID "${unbypassArgs.scope}"`}`}.`;
         break;
+      }
+      case "songrequest": {
+
+        let scope = bypass?.scope || unbypassArgs.scope || null;
+
+        let user = scope !== "all" && scope ? await this.bot.fetchUser(scope) : null;
+
+        removedBypassMessage = `Removed bypass for song request redemption checks for ${bypass?.scope == "all" ? "all streamers" : `${user?.display_name || `streamer with ID "${bypass?.scope}"`}`}.`;
+        noBypassMessage = `No bypass found for song request redemption checks for ${unbypassArgs.scope == "all" ? "all streamers" : `${user?.display_name || `streamer with ID "${unbypassArgs.scope}"`}`}.`;
+        break;
+      }
     }
 
     if (bypass) {

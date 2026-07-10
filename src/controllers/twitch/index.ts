@@ -1,5 +1,6 @@
 import { Controller } from "@/lib/base/controller";
 import Communication from "@/lib/communication";
+import { onShutdown } from "@/lib/shutdown";
 import { EncryptedField } from "@/lib/enc-field";
 import { extendsClass, findFiles, importLocalModule, invalidateCache, parseDuration } from "@/lib/misc";
 import chalk from "chalk";
@@ -62,6 +63,13 @@ export default class TwitchController extends Controller {
   private readonly listenedTwitchEventHashes = new WeakMap<TwitchClient, Set<string>>();
   private readonly twitchEventHandlers = new WeakMap<TwitchClient, Map<string, Map<string, TwitchEventHandlerRecord>>>();
   private readonly twitchEventListeners = new WeakMap<TwitchClient, Map<string, (source: TwitchClient, payload: any) => void>>();
+
+  @onShutdown
+  private async shutdown() {
+    await Promise.allSettled(
+      [...global.twitch.streamers.values()].map((streamer) => streamer.cleanup()),
+    );
+  }
 
   private streamerInit = async (client: TwitchClient) => {
     if (!Object.keys(global.twitch.streamerData).includes(client.IAM.id)) {
@@ -280,6 +288,7 @@ export default class TwitchController extends Controller {
   }
 
   public async exec() {
+    
 
     if (!global.twitch) global.twitch = {
       controller: this,

@@ -21,6 +21,7 @@ import { parameterize, RequiresPermission, TwitchPermissions } from "@twitch/lib
 
 
 export default class BypassCMD extends WaiterCommand {
+  public override displayName = "Bypass";
   public messageTrigger: RegExp = /^!bypass\s+(?<args>.*)/;
 
   @RequiresPermission(TwitchPermissions.Developer)
@@ -46,6 +47,17 @@ export default class BypassCMD extends WaiterCommand {
 
       completeMessage = `Added bypass for live status checks for ${scope == "all" ? "all streamers" : `${user?.display_name || `streamer with ID "${scope}"`}`}.`;
       alreadyExistsMessage = `A bypass for live status checks for ${scope == "all" ? "all streamers" : `${user?.display_name || `streamer with ID "${scope}"`}`} already exists.`;
+    }
+
+    if (bypassArgs.type === "songrequest") {
+      scope = scope?.toLowerCase() || channel.IAM.id || "all";
+
+      let user = scope !== "all" ? await this.bot.fetchUser(scope) : null;
+
+      scope = scope === "all" ? "all" : user?.id || scope;
+
+      completeMessage = `Added bypass for song request redemption checks for ${scope == "all" ? "all streamers" : `${user?.display_name || `streamer with ID "${scope}"`}`}.`;
+      alreadyExistsMessage = `A bypass for song request redemption checks for ${scope == "all" ? "all streamers" : `${user?.display_name || `streamer with ID "${scope}"`}`} already exists.`;
     }
 
     if (global.twitch.bypasses.has({ type: bypassArgs.type, scope: scope })) {

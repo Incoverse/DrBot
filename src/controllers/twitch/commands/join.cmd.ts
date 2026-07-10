@@ -26,6 +26,7 @@ import { generateAuthURL } from "../lib/authentication";
 const scope: CommandScope = "dm" 
 
 export default class JoinCMD extends WaiterCommand<typeof scope> {
+  public override displayName = "Join";
   public messageTrigger: RegExp = /^!join\s+(?<code>.*)$/;
 
   public override cooldown: CooldownSystem = new CooldownSystem({

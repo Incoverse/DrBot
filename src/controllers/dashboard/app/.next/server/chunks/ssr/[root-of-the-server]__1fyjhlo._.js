@@ -1,0 +1,3 @@
+module.exports=[64433,a=>{a.v({className:"inter_5972bc34-module__OU16Qa__className"})},8862,a=>{"use strict";var b=a.i(7997),c=a.i(64433);let d={className:c.default.className,style:{fontFamily:"'Inter', 'Inter Fallback'",fontStyle:"normal"}};null!=c.default.variable&&(d.variable=c.default.variable),a.s(["default",0,function({children:a}){return(0,b.jsx)("html",{lang:"en",className:d.className,suppressHydrationWarning:!0,children:(0,b.jsx)("body",{children:a})})},"metadata",0,{title:"Waiter Dashboard",description:"Waiter admin dashboard"}],8862)},74459,a=>{a.n(a.i(8862))}];
+
+//# sourceMappingURL=%5Broot-of-the-server%5D__1fyjhlo._.js.map

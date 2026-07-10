@@ -20,6 +20,7 @@ import WaiterCommand, { type ChannelMessage } from "@twitch/lib/base/WaiterComma
 
 
 export default class DiscordCMD extends WaiterCommand {
+  public override displayName = "Discord";
   public messageTrigger: RegExp = /^!discord$/;
 
   public override async setup(clients: TwitchClient[], reason?: "initial" | "catch-up" | "other"): Promise<boolean | null> {

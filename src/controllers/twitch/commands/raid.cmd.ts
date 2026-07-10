@@ -22,6 +22,7 @@ import { parameterize, RequiresPermission, TwitchPermissions } from "../lib/misc
 
 
 export default class RaidCMD extends WaiterCommand {
+  public override displayName = "Raid";
   public messageTrigger: RegExp = /^!raid\s+(?<args>.+)$/;
 
   @RequiresPermission(TwitchPermissions.Moderator)

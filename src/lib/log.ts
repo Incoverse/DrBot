@@ -102,10 +102,32 @@ const LOGTYPE: { [key in LOGLEVEL]?: string } = {
   [LOGLEVEL.FATAL]: "fatal",
 };
 
+// ── In-memory log ring buffer (dev-only viewer) ──────────────────────────────
+// Every emitted line (ANSI colors preserved) is mirrored here so the dashboard's
+// dev tools can show the live server log. Bounded; survives until restart.
+type CapturedLog = { seq: number; ts: number; line: string };
+const LOG_RING_MAX = 2000;
+const logRing: CapturedLog[] = [];
+let logSeq = 0;
+
+function captureLogLine(line: string) {
+  try {
+    logRing.push({ seq: ++logSeq, ts: Date.now(), line });
+    if (logRing.length > LOG_RING_MAX) logRing.splice(0, logRing.length - LOG_RING_MAX);
+  } catch { /* never break logging */ }
+}
+
+/** Return captured log lines after `afterSeq` (0 = from the start of the buffer). */
+export function getWaiterLogs(afterSeq = 0, limit = 1000): { logs: CapturedLog[]; lastSeq: number } {
+  const logs = logRing.filter((l) => l.seq > afterSeq).slice(-limit);
+  return { logs, lastSeq: logSeq };
+}
+(global as any).getWaiterLogs = getWaiterLogs;
+
 export default class WaiterLog {
   private origLog: (...args: any[]) => void;
 
-  private stringifyArgs(...args: any[]) {
+  public stringifyArgs(...args: any[]) {
     return args
       .map((arg) => {
         if (typeof arg !== "string") {
@@ -188,26 +210,16 @@ export default class WaiterLog {
 
     const logger = this;
 
-    console.withSender = function (this: Console, name: string) {
-      const newConsole = Object.create(this) as Console;
-
-      newConsole.includeSender = true;
-      newConsole.rootSender = name;
-
-      return newConsole;
-    };
-
-    console.withPrefix = function (this: Console, prefix: string) {
-      const newConsole = Object.create(this) as Console;
-
-      newConsole.prefix = prefix;
-
-      return newConsole;
-    };
+    const LOG_METHODS = [
+      "line", "trace", "debug", "log", "info",
+      "great", "perfect", "perf", "success",
+      "fail", "warn", "error", "fatal",
+    ] as const;
 
     console.line = function (this: Console, ...args: any[]) {
       if (this.logLevel >= LOGLEVEL.LINE) {
         logger.writeToLogFile(this, ...args);
+        captureLogLine(logger.stringifyArgs(...args));
         logger.origLog(...args);
       }
     };
@@ -301,6 +313,43 @@ export default class WaiterLog {
             : [...(!!this.prefix ? [this.prefix] : []), ...args]),
         );
       }
+    };
+
+    // Capture Waiter's implementations NOW, before any external code (e.g. Next.js
+    // spinner) can replace console.log/debug/warn/error with arrow functions.
+    // Arrow functions ignore .apply()'s thisArg, so if a derived console's method
+    // wraps a spinner-patched arrow, `this` is always the global console → [MNGR].
+    // Storing the real implementations here makes withSender/withPrefix immune.
+    const waiterImpls: Record<string, Function> = {};
+    for (const method of LOG_METHODS) {
+      const fn = (console as any)[method];
+      if (typeof fn === "function") waiterImpls[method] = fn;
+    }
+
+    function snapshotMethods(newConsole: Console) {
+      for (const method of LOG_METHODS) {
+        const fn = waiterImpls[method];
+        if (fn) {
+          (newConsole as any)[method] = function (this: Console, ...args: any[]) {
+            return fn.apply(this, args);
+          };
+        }
+      }
+    }
+
+    console.withSender = function (this: Console, name: string) {
+      const newConsole = Object.create(this) as Console;
+      newConsole.includeSender = true;
+      newConsole.rootSender = name;
+      snapshotMethods(newConsole);
+      return newConsole;
+    };
+
+    console.withPrefix = function (this: Console, prefix: string) {
+      const newConsole = Object.create(this) as Console;
+      newConsole.prefix = prefix;
+      snapshotMethods(newConsole);
+      return newConsole;
     };
 
         if (console.saveToFile) {

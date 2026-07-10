@@ -42,6 +42,52 @@ export async function cancelRedemption(this: TwitchClient, redemption_id: string
   });
 }
 
+export type RewardRedemption = {
+  broadcaster_name: string;
+  broadcaster_login: string;
+  broadcaster_id: string;
+  id: string;
+  user_login: string;
+  user_id: string;
+  user_name: string;
+  user_input: string;
+  status: "UNFULFILLED" | "FULFILLED" | "CANCELED";
+  redeemed_at: string;
+  reward: {
+    id: string;
+    title: string;
+    prompt: string;
+    cost: number;
+  };
+};
+
+export async function getRedemptions(this: TwitchClient, reward_id: string, status: "UNFULFILLED" | "FULFILLED" | "CANCELED" = "UNFULFILLED"): Promise<RewardRedemption[]> {
+  if (!canUseChannelPoints(this, "fetch redemptions")) {
+    return [];
+  }
+
+  const results: RewardRedemption[] = [];
+  let cursor: string | undefined = undefined;
+
+  do {
+    const res = await this.api.get(`/channel_points/custom_rewards/redemptions`, {
+      params: {
+        broadcaster_id: this.IAM.id,
+        reward_id,
+        status,
+        first: 50,
+        after: cursor,
+      },
+    });
+
+    const data = Array.isArray(res.data?.data) ? (res.data.data as RewardRedemption[]) : [];
+    results.push(...data);
+    cursor = res.data?.pagination?.cursor;
+  } while (cursor);
+
+  return results;
+}
+
 export async function getRewards(this: TwitchClient, id: string | null = null, only_manageable: boolean = false): Promise<TwitchRedemption[]> {
   if (!canUseChannelPoints(this, "fetch rewards")) {
     return [];

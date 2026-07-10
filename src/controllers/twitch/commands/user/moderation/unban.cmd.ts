@@ -21,6 +21,7 @@ import WaiterCommand, { type ChannelMessage } from "@twitch/lib/base/WaiterComma
 
 
 export default class UnbanCMD extends WaiterCommand {
+  public override displayName = "Unban";
   public messageTrigger: RegExp = /^!unban\s+(?<args>.+)$/;
 
   @RequiresPermission(TwitchPermissions.Moderator)

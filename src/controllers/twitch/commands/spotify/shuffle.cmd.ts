@@ -23,6 +23,7 @@ import { RequiresPermission, TwitchPermissions } from "../../lib/misc";
 
 
 export default class ShuffleCMD extends WaiterCommand {
+  public override displayName = "Shuffle";
   public messageTrigger: RegExp = /^!shuffle\s*(?<shuffle>(true|yes|no|false))?$/;
 
   @RequiresPermission(TwitchPermissions.VIP)

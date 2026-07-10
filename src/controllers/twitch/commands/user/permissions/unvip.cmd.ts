@@ -4,6 +4,7 @@ import { RequiresPermission, TwitchPermissions } from "@/controllers/twitch/lib/
 
 
 export default class UnvipCMD extends WaiterCommand {
+  public override displayName = "Unvip";
   public messageTrigger: RegExp = /^!unvip\s+(?<username>\w+)$/;
 
 

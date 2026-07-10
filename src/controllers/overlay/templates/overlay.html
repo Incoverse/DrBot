@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waiter Overlay</title>
+</head>
+<body>
+    <div id="overlay-root">
+    </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io("/overlay", {
+      auth: {
+        id: "{{id}}",
+        window: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        }
+      },
+    });
+
+    socket.on("connect", () => {
+      console.log("Connected to Waiter overlay namespace with ID: {{id}}");
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("Disconnected from Waiter overlay namespace. Reason:", reason);
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("Connection error to Waiter overlay namespace:", error);
+    });
+
+
+    socket.on("overlay.reload", (_, ack) => {
+      console.log("Received overlay.reload event, reloading page...");
+      
+      ack({ success: true });
+      window.location.reload();
+    });
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioCache = new Map();
+
+    async function loadAudio(url) {
+      if (audioCache.has(url)) return audioCache.get(url);
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      audioCache.set(url, audioBuffer);
+      return audioBuffer;
+    }
+
+    async function playAudio(url, volume = 1.0) {
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+      const buffer = await loadAudio(url);
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = volume;
+      source.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      source.start(0);
+    }
+
+    socket.on("overlay.audio.play", async ({payload: { url, volume = 1.0 }}, ack) => {
+      console.log(`Received overlay.audio.play event: ${url} (volume: ${volume})`);
+      try {
+        await playAudio(url, volume);
+        ack({ success: true });
+      } catch (err) {
+        console.error("Error playing audio:", err);
+        ack({ success: false, error: err.message });
+      }
+    });
+
+    const templateModuleCache = new Map();
+    const runningTemplates = new Map();    // instanceId -> resolve fn
+    const templateUpdateHandlers = new Map(); // instanceId -> (vars) => void
+
+    let lastSpotifyState = null;
+    socket.on("overlay.spotify.state", ({ payload: { state } }) => {
+      lastSpotifyState = state;
+    });
+
+    async function loadTemplate(id) {
+      let mod = templateModuleCache.get(id);
+      if (!mod) {
+        mod = await import(`/overlay/templates/${id}`);
+        templateModuleCache.set(id, mod);
+      }
+      return mod;
+    }
+
+    function injectTemplateHtml(htmlString, elementId) {
+      const temp = document.createElement("div");
+      temp.innerHTML = htmlString.trim();
+      const root = temp.firstElementChild;
+      if (!root) return null;
+      root.id = elementId;
+      document.getElementById("overlay-root").appendChild(root);
+      return root;
+    }
+
+    function buildTemplateAPI(untilUnrendered, instanceId = null, htmlRoot = null) {
+      const cleanupFns = [];
+      return {
+        playSound: (url, volume = 1.0) => playAudio(url, volume),
+        root: document.getElementById("overlay-root"),
+        htmlRoot,
+        untilUnrendered: async () => {
+          await untilUnrendered();
+          for (const fn of cleanupFns) fn();
+          cleanupFns.length = 0;
+        },
+        onUpdate: (cb) => {
+          if (!instanceId) return;
+          templateUpdateHandlers.set(instanceId, cb);
+          cleanupFns.push(() => templateUpdateHandlers.delete(instanceId));
+        },
+        onSpotifyUpdate: (cb) => {
+          if (lastSpotifyState !== null) cb(lastSpotifyState);
+          const handler = ({ payload: { state } }) => cb(state);
+          socket.on("overlay.spotify.state", handler);
+          cleanupFns.push(() => socket.off("overlay.spotify.state", handler));
+        },
+      };
+    }
+
+    // Transient: run to completion, ack when done. untilUnrendered resolves immediately.
+    socket.on("overlay.template.run", async ({ payload: { id, vars, elementId } }, ack) => {
+      console.log(`Received overlay.template.run: ${id}`, vars);
+      let htmlRoot = null;
+      try {
+        const mod = await loadTemplate(id);
+        if (mod.html && elementId) htmlRoot = injectTemplateHtml(mod.html, elementId);
+        const api = buildTemplateAPI(() => Promise.resolve(), null, htmlRoot);
+        await mod.exec(vars, api);
+        htmlRoot?.remove();
+        ack({ success: true });
+      } catch (err) {
+        htmlRoot?.remove();
+        console.error(`Error running template '${id}':`, err);
+        ack({ success: false, error: String(err) });
+      }
+    });
+
+    // Persistent: ack as soon as rendering starts. untilUnrendered holds until unrender event.
+    socket.on("overlay.template.render", async ({ payload: { id, vars, instanceId, elementId } }, ack) => {
+      console.log(`Received overlay.template.render: ${id} (instanceId: ${instanceId})`, vars);
+      try {
+        const mod = await loadTemplate(id);
+        const htmlRoot = (mod.html && elementId) ? injectTemplateHtml(mod.html, elementId) : null;
+
+        let unrenderResolve;
+        const untilUnrendered = () => new Promise((r) => { unrenderResolve = r; });
+        runningTemplates.set(instanceId, () => unrenderResolve?.());
+
+        ack({ success: true });
+
+        mod.exec(vars, buildTemplateAPI(untilUnrendered, instanceId, htmlRoot))
+          .catch((err) => console.error(`Error in persistent template '${id}' (${instanceId}):`, err))
+          .finally(() => {
+            runningTemplates.delete(instanceId);
+            htmlRoot?.remove();
+          });
+      } catch (err) {
+        console.error(`Error starting persistent template '${id}':`, err);
+        ack({ success: false, error: String(err) });
+      }
+    });
+
+    socket.on("overlay.template.update", ({ payload: { instanceId, vars } }, ack) => {
+      const handler = templateUpdateHandlers.get(instanceId);
+      if (handler) {
+        handler(vars);
+        ack({ success: true });
+      } else {
+        ack({ success: false, error: `No update handler for instance '${instanceId}'` });
+      }
+    });
+
+    socket.on("overlay.template.unrender", ({ payload: { instanceId } }, ack) => {
+      const resolve = runningTemplates.get(instanceId);
+      if (resolve) {
+        resolve();
+        ack({ success: true });
+      } else {
+        ack({ success: false, error: `No running template with instanceId '${instanceId}'` });
+      }
+    });
+
+    socket.on("overlay.render.text", ({payload: { elementId, text, position, size }}, ack) => {
+      // position x or y can be "center" to center the text on that axis
+      console.log(`Received overlay.render.text event: ${text} (elementId: ${elementId}) at position (${position?.x}, ${position?.y})`);
+      let textElement = document.getElementById(elementId);
+      if (!textElement) {
+        textElement = document.createElement("div");
+        textElement.id = elementId;
+        textElement.style.position = "absolute";
+        if (position.x === "center" && position.y === "center") {
+          textElement.style.left = "50%";
+          textElement.style.top = "50%";
+          textElement.style.transform = "translate(-50%, -50%)";
+        } else if (position.x === "center") {
+          textElement.style.left = "50%";
+          textElement.style.transform = "translateX(-50%)";
+        } else if (position.y === "center") {
+          textElement.style.top = "50%";
+          textElement.style.transform = "translateY(-50%)";
+        }
+        textElement.style.color = "white";
+        textElement.style.fontSize = `${size}px`;
+        textElement.style.fontFamily = "Arial, sans-serif";
+        textElement.style.textShadow = "2px 2px 4px rgba(0, 0, 0, 0.7)";
+        document.getElementById("overlay-root").appendChild(textElement);
+      }
+      textElement.textContent = text;
+      ack({ success: true, elementId });
+
+    });
+
+  </script>
+</body>
+</html>

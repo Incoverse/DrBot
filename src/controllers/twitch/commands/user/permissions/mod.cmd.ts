@@ -4,6 +4,7 @@ import { RequiresPermission, TwitchPermissions } from "@/controllers/twitch/lib/
 
 
 export default class ModCMD extends WaiterCommand {
+  public override displayName = "Mod";
   public messageTrigger: RegExp = /^!mod\s+(?<username>\w+)$/;
 
 
