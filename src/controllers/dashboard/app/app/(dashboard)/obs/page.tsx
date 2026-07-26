@@ -57,6 +57,7 @@ import {
   SkipForward,
   ChevronDown,
   ChevronRight,
+  Download,
 } from "lucide-react";
 
 /* ───────────────────────── types ───────────────────────── */
@@ -447,6 +448,7 @@ export default function ObsPage() {
               <StatsCard stats={status!.stats} />
               <HotkeysCard wuid={wuid} obs={obs} say={say} />
               <CaptionCard obs={obs} say={say} />
+              <ExportConfigCard wuid={wuid} />
             </>
           )}
         </>
@@ -456,6 +458,69 @@ export default function ObsPage() {
 }
 
 /* ───────────────────────── shared bits ───────────────────────── */
+
+// Dev-only: download this machine's OBS scene collections + profiles as a zip (stream key + auth
+// tokens are stripped server-side by the export route before it ever leaves the machine).
+function ExportConfigCard({ wuid }: { wuid: string }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; kind: Kind } | null>(null);
+  const run = async () => {
+    if (!wuid) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch("/dashboard/api/obs/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wuid }),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        setMsg({ text: e?.error ?? `Export failed (${r.status})`, kind: "err" });
+        return;
+      }
+      const blob = await r.blob();
+      const cd = r.headers.get("Content-Disposition") ?? "";
+      const fn = /filename="([^"]+)"/.exec(cd)?.[1] ?? "obs-config.zip";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fn;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setMsg({ text: `Downloaded ${fn}`, kind: "ok" });
+    } catch (e: any) {
+      setMsg({ text: e?.message ?? "Export failed", kind: "err" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="section-card">
+      <div className="section-header">
+        <h3 className="section-title flex items-center gap-2">
+          <Download size={15} /> Export config
+        </h3>
+      </div>
+      <div className="section-body flex flex-col gap-2">
+        <p className="text-sm text-fg-subtle">
+          Download this machine&apos;s OBS scene collections + profiles as a .zip. The stream key and auth
+          tokens are excluded — they never leave the machine.
+        </p>
+        <button onClick={run} disabled={busy || !wuid} className="btn-primary text-sm w-fit">
+          <Download size={14} /> {busy ? "Exporting…" : "Export OBS config (.zip)"}
+        </button>
+        {msg && (
+          <span className="text-xs" style={{ color: msg.kind === "err" ? "var(--color-danger)" : "var(--color-success)" }}>
+            {msg.text}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function FeedbackLine({ msg, kind }: { msg: string; kind: Kind }) {
   const color =

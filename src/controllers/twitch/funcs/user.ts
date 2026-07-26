@@ -35,6 +35,42 @@ export async function getGame(this: TwitchClient, idOrName: string) {
     .then(ResDataData0);
 }
 
+export type TwitchCategory = {
+  id: string;
+  name: string;
+  /** Box art URL with `{width}`/`{height}` placeholders still in it. */
+  box_art_url: string;
+};
+
+/**
+ * Search Twitch's categories/games by (partial) name — `GET /search/categories?query=...`.
+ *
+ * This is the endpoint that backs the category picker on Twitch itself, so it does prefix/fuzzy
+ * matching where `getGame()` requires an exact name. Returns `[]` on any failure so callers (e.g.
+ * Discord autocomplete, which cannot report an error) can just render an empty list.
+ */
+export async function searchCategories(
+  this: TwitchClient,
+  query: string,
+  limit = 25,
+): Promise<TwitchCategory[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  try {
+    const res = await this.api.get(`/search/categories`, {
+      params: { query: trimmed, first: Math.min(Math.max(limit, 1), 100) },
+    });
+    return (res?.data?.data as TwitchCategory[] | undefined) ?? [];
+  } catch (err: any) {
+    this.logger.warn(
+      "Failed to search Twitch categories:",
+      err?.response?.data?.message || err?.message || err,
+    );
+    return [];
+  }
+}
+
 export async function getVideos(this: TwitchClient, settings: any): Promise<{
   id: string;
   stream_id: string;

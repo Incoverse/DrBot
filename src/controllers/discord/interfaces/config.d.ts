@@ -14,9 +14,15 @@ declare global {
         mod?: string | null;
         /** Admin role — can use admin tools (edit/entry/rules/set/drbot). */
         admin?: string | null;
+        /**
+         * Streamer role — can use `/schedule` and press its **Partake** button. Either a role ID
+         * prefixed with '#' (e.g. "#123456789") or a role name prefixed with '@' (e.g. "@Streamers").
+         * When unset, the first role whose name looks like "streamer(s)" is used.
+         */
+        streamer?: string | null;
       };
 
-      /** Channel IDs (or '#name'/'@id' selectors) for bot systems. */
+      /** Channel IDs (or '#id'/'@name' selectors) for bot systems. */
       channels?: {
         /** Where moderation/audit actions are logged. */
         modLog?: string | null;
@@ -48,7 +54,7 @@ declare global {
       starboard?: {
         /** Whether the starboard is enabled. @default false */
         enabled?: boolean;
-        /** The starboard channel. Either a channel name prefixed with '#' (e.g. "#starboard") or a channel ID prefixed with '@' (e.g. "@123456789"). If null, a channel with 'starboard' in its name is used. @default null */
+        /** The starboard channel. Either a channel ID prefixed with '#' (e.g. "#123456789") or a channel name prefixed with '@' (e.g. "@starboard"). If null, a channel with 'starboard' in its name is used. @default null */
         channel?: string | null;
         /** The emoji that triggers the starboard. Either a unicode emoji or a custom emoji ID. @default "⭐" */
         emoji?: string;
@@ -102,9 +108,9 @@ declare global {
       birthdays?: {
         /** Whether birthday announcements are enabled. @default true */
         enabled?: boolean;
-        /** The channel to send birthday messages in. Either a channel name prefixed with '#' or a channel ID prefixed with '@'. If null, a channel with 'birthdays' in its name is used. @default null */
+        /** The channel to send birthday messages in. Either a channel ID prefixed with '#' or a channel name prefixed with '@'. If null, a channel with 'birthdays' in its name is used. @default null */
         channel?: string | null;
-        /** The role to give users on their birthday. Either a role name prefixed with '#' or a role ID prefixed with '@'. If null, a role with 'birthday' in its name is used. @default null */
+        /** The role to give users on their birthday. Either a role ID prefixed with '#' or a role name prefixed with '@'. If null, a role with 'birthday' in its name is used. @default null */
         role?: string | null;
       };
     };

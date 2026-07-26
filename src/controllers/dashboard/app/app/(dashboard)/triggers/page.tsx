@@ -17,6 +17,7 @@ import {
   Clock,
   Lock,
   Star,
+  Copy,
 } from "lucide-react";
 import { useActiveChannel } from "@/components/ActiveChannelProvider";
 
@@ -205,7 +206,7 @@ type PresetEntry = {
 const api = (path: string) => `/dashboard/api${path}`;
 
 export default function TriggersPage() {
-  const { activeChannelId, activeChannel, isOwnChannel, loading: channelLoading } =
+  const { activeChannelId, activeChannel, channels, isOwnChannel, loading: channelLoading } =
     useActiveChannel();
 
   const [isDev, setIsDev] = useState(false);
@@ -226,6 +227,9 @@ export default function TriggersPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingCodeId, setEditingCodeId] = useState<string | null>(null);
   const [editingCmdId, setEditingCmdId] = useState<string | null>(null);
+  // Which row (if any) has its "clone to other channel" picker open, and the chosen target.
+  const [cloningUserId, setCloningUserId] = useState<string | null>(null);
+  const [cloneTarget, setCloneTarget] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpand = (key: string) =>
     setExpanded((prev) => {
@@ -235,6 +239,12 @@ export default function TriggersPage() {
     });
 
   const canEdit = !!(activeChannel?.isBroadcaster || isDev);
+
+  // Channels this trigger could be cloned INTO: everything switchable except the current one,
+  // and only where the user could create a trigger (broadcaster, or dev anywhere).
+  const cloneTargets = canEdit
+    ? channels.filter((c) => c.id !== activeChannelId && (c.isBroadcaster || isDev))
+    : [];
 
   useEffect(() => {
     fetch(api("/me"))
@@ -422,6 +432,34 @@ export default function TriggersPage() {
       }
     } catch {
       setUserTriggers((prev) => prev.map((u) => (u.id === t.id ? { ...u, [field]: t[field] } : u)));
+      flash("✗ Network error");
+    }
+    setToggling(null);
+  };
+
+  // --- Clone a user trigger onto another channel ---
+  // The clone creates a NEW managed reward on the target, so only managed triggers qualify: a
+  // mode:"existing" trigger points at a reward id that only exists on the source channel.
+  const cloneUserTrigger = async (t: UserTrigger, target: string) => {
+    if (!canEdit || toggling || !target) return;
+    const key = `clone:${t.id}`;
+    setToggling(key);
+    try {
+      const r = await fetch(api("/triggers/clone"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: activeChannelId, to: target, id: t.id }),
+      });
+      const d = await r.json();
+      if (!d.success) {
+        flash(`✗ ${d.error ?? "Clone failed"}`);
+      } else {
+        const label = channels.find((c) => c.id === target)?.displayName ?? target;
+        flash(`✓ Cloned ${t.name} → ${label}`);
+        setCloningUserId(null);
+        setCloneTarget("");
+      }
+    } catch {
       flash("✗ Network error");
     }
     setToggling(null);
@@ -807,6 +845,35 @@ export default function TriggersPage() {
                                     title="Edit trigger"
                                     onClick={() => setEditingUserId((cur) => (cur === t.id ? null : t.id))}
                                   />
+                                  {cloneTargets.length > 0 && (
+                                    <button
+                                      onClick={() => {
+                                        setCloneTarget("");
+                                        setCloningUserId((cur) => (cur === t.id ? null : t.id));
+                                      }}
+                                      disabled={!t.manage_reward || toggling === `clone:${t.id}`}
+                                      title={
+                                        t.manage_reward
+                                          ? "Clone to another channel"
+                                          : "Only Waiter-managed rewards can be cloned — this trigger is linked to an existing reward on this channel"
+                                      }
+                                      className="inline-flex items-center text-xs transition-colors px-2 py-1 rounded-md border disabled:opacity-40 disabled:cursor-not-allowed"
+                                      style={{
+                                        color:
+                                          cloningUserId === t.id ? "var(--color-brand)" : "var(--color-fg-subtle)",
+                                        borderColor:
+                                          cloningUserId === t.id
+                                            ? "color-mix(in srgb, var(--color-brand) 30%, transparent)"
+                                            : "transparent",
+                                        background:
+                                          cloningUserId === t.id
+                                            ? "color-mix(in srgb, var(--color-brand) 10%, transparent)"
+                                            : "transparent",
+                                      }}
+                                    >
+                                      {cloningUserId === t.id ? <X size={12} /> : <Copy size={12} />}
+                                    </button>
+                                  )}
                                   <button
                                     onClick={() => deleteUserTrigger(t)}
                                     disabled={toggling === `del:${t.id}`}
@@ -820,6 +887,42 @@ export default function TriggersPage() {
                             </div>
                           </td>
                         </tr>
+                        {cloningUserId === t.id ? (
+                          <tr className="border-t border-line/50 bg-elevated/10">
+                            <td colSpan={3} className="px-5 py-4 pl-12">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-fg-subtle">Clone to</span>
+                                <select
+                                  value={cloneTarget}
+                                  onChange={(e) => setCloneTarget(e.target.value)}
+                                  className="bg-elevated border border-line rounded-md px-2 py-1 text-xs"
+                                >
+                                  <option value="">Select a channel…</option>
+                                  {cloneTargets.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.displayName}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => cloneUserTrigger(t, cloneTarget)}
+                                  disabled={!cloneTarget || toggling === `clone:${t.id}`}
+                                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-line hover:bg-elevated transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  <Copy size={12} />
+                                  {toggling === `clone:${t.id}` ? "Cloning…" : "Clone"}
+                                </button>
+                              </div>
+                              <p className="mt-2 text-[11px] text-fg-subtle">
+                                Creates a new channel-point reward on the target channel using this
+                                trigger&apos;s settings, plus its own trigger row. This channel is left
+                                untouched. If the target has its own script/preset of the same name, the
+                                clone binds to that one; otherwise it keeps a copy of this trigger&apos;s
+                                compiled steps.
+                              </p>
+                            </td>
+                          </tr>
+                        ) : null}
                         {editingUserId === t.id ? (
                           <tr className="border-t border-line/50 bg-elevated/10">
                             <td colSpan={3} className="px-5 py-4 pl-12">
