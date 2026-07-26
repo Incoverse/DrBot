@@ -211,10 +211,12 @@ export default class ManagerClient {
     delay: { keyboard: number; mouse: number };
     ice: { enabled: boolean; friction: number; strength: number };
     drift: { enabled: boolean; speed: number; angleDeg: number };
-  } = { enabled: false, disabled: [], redirects: [], mouse: null, delay: { keyboard: 0, mouse: 0 }, ice: { enabled: false, friction: 0.85, strength: 0.5 }, drift: { enabled: false, speed: 120, angleDeg: 90 } };
+    sensitivity: { enabled: boolean; scaleX: number; scaleY: number };
+    typos: { enabled: boolean; chance: number };
+  } = { enabled: false, disabled: [], redirects: [], mouse: null, delay: { keyboard: 0, mouse: 0 }, ice: { enabled: false, friction: 0.85, strength: 0.5 }, drift: { enabled: false, speed: 120, angleDeg: 90 }, sensitivity: { enabled: false, scaleX: 1, scaleY: 1 }, typos: { enabled: false, chance: 0.1 } };
 
   public resetInterceptionState() {
-    this.interceptionState = { enabled: false, disabled: [], redirects: [], mouse: null, delay: { keyboard: 0, mouse: 0 }, ice: { enabled: false, friction: 0.85, strength: 0.5 }, drift: { enabled: false, speed: 120, angleDeg: 90 } };
+    this.interceptionState = { enabled: false, disabled: [], redirects: [], mouse: null, delay: { keyboard: 0, mouse: 0 }, ice: { enabled: false, friction: 0.85, strength: 0.5 }, drift: { enabled: false, speed: 120, angleDeg: 90 }, sensitivity: { enabled: false, scaleX: 1, scaleY: 1 }, typos: { enabled: false, chance: 0.1 } };
   }
 
   // ── Screen-block overlay ─────────────────────────────────────────────────────
@@ -369,6 +371,28 @@ export default class ManagerClient {
     };
     this.interceptionState.drift = state;
     return this.request<{ enabled: boolean; speed: number; angleDeg: number }>("interception.drift.set", state);
+  }
+
+  // ── Mouse sensitivity (delta multiplier; per-axis, clamped [0.05, 20] client-side) ──
+  public interceptionSensitivitySet(opts: { enabled?: boolean; scaleX?: number; scaleY?: number }) {
+    const num = (v: unknown, d: number) => (Number.isFinite(v as number) ? Number(v) : d);
+    const state = {
+      enabled: opts.enabled === true,
+      scaleX: num(opts.scaleX, 1),
+      scaleY: num(opts.scaleY, 1),
+    };
+    this.interceptionState.sensitivity = state;
+    return this.request<{ enabled: boolean }>("interception.sensitivity.set", state);
+  }
+
+  // ── Keyboard typos (chance 0..1 of hitting a physically adjacent key) ────────
+  public interceptionTyposSet(opts: { enabled?: boolean; chance?: number }) {
+    const state = {
+      enabled: opts.enabled === true,
+      chance: Number.isFinite(opts.chance as number) ? Number(opts.chance) : 0.1,
+    };
+    this.interceptionState.typos = state;
+    return this.request<{ enabled: boolean }>("interception.typos.set", state);
   }
 
   // ── Input delay (artificial lag; seconds, float) ─────────────────────────────

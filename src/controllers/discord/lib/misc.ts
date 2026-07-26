@@ -100,8 +100,8 @@ export async function getAllBirthdays(): Promise<BirthdayEntry[]> {
 
 /**
  * Resolves a configured channel selector to a text channel.
- * - `#name` selects by exact channel name
- * - `@id` selects by channel ID
+ * - `#id` selects by channel ID
+ * - `@name` selects by exact channel name
  * - `null` falls back to the first text channel whose name matches `fallback`
  */
 export async function resolveTextChannel(
@@ -113,10 +113,10 @@ export async function resolveTextChannel(
 
   let channel: Discord.GuildBasedChannel | null | undefined = null;
   if (selector?.startsWith("#")) {
+    channel = channels.get(selector.substring(1));
+  } else if (selector?.startsWith("@")) {
     const name = selector.substring(1);
     channel = channels.find((c) => c?.name === name);
-  } else if (selector?.startsWith("@")) {
-    channel = channels.get(selector.substring(1));
   } else {
     channel = channels.find((c) => !!c && fallback.test(c.name) && c.type === Discord.ChannelType.GuildText);
   }
@@ -129,8 +129,8 @@ export async function resolveTextChannel(
 
 /**
  * Resolves a configured role selector to a role.
- * - `#name` selects by exact role name
- * - `@id` selects by role ID
+ * - `#id` selects by role ID
+ * - `@name` selects by exact role name
  * - `null` falls back to the first role whose name matches `fallback`
  */
 export async function resolveRole(
@@ -141,10 +141,10 @@ export async function resolveRole(
   const roles = await guild.roles.fetch();
 
   if (selector?.startsWith("#")) {
+    return roles.get(selector.substring(1)) ?? null;
+  } else if (selector?.startsWith("@")) {
     const name = selector.substring(1);
     return roles.find((r) => r.name === name) ?? null;
-  } else if (selector?.startsWith("@")) {
-    return roles.get(selector.substring(1)) ?? null;
   }
 
   return roles.find((r) => fallback.test(r.name)) ?? null;

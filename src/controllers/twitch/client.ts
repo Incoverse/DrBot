@@ -1128,6 +1128,8 @@ export default class TwitchClient {
   public getStreams = this.bindChannelFn(User.getStreams)
   /** Get information about a game. */
   public getGame = this.bindChannelFn(User.getGame)
+  /** Search Twitch's categories/games by (partial) name. */
+  public searchCategories = this.bindChannelFn(User.searchCategories)
   /** Find or get information about a VoD. */
   public getVideos = this.bindChannelFn(User.getVideos)
 
@@ -1148,6 +1150,10 @@ export default class TwitchClient {
 
   /** Get the authenticated broadcaster's stream schedule. Returns null when no schedule exists. */
   public getStreamSchedule = this.bindChannelFn(Schedule.getStreamSchedule)
+  /** Add a segment to the authenticated broadcaster's schedule. Requires "channel:manage:schedule". */
+  public createScheduleSegment = this.bindChannelFn(Schedule.createScheduleSegment)
+  /** Remove a segment from the authenticated broadcaster's schedule. Requires "channel:manage:schedule". */
+  public deleteScheduleSegment = this.bindChannelFn(Schedule.deleteScheduleSegment)
 
 
   public fetchUser = async (idLogin?: string): Promise<TwitchUser | null> => {

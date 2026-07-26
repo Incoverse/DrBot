@@ -95,7 +95,7 @@ export default class DiscordController extends Controller {
             .describe("Whether the starboard is enabled.")
             .default(false),
           channel: z.string()
-            .describe("The starboard channel. Either a channel name prefixed with '#' (e.g. \"#starboard\") or a channel ID prefixed with '@' (e.g. \"@123456789\"). If null, a channel with 'starboard' in its name is used.")
+            .describe("The starboard channel. Either a channel ID prefixed with '#' (e.g. \"#123456789\") or a channel name prefixed with '@' (e.g. \"@starboard\"). If null, a channel with 'starboard' in its name is used.")
             .nullable()
             .default(null),
           emoji: z.string()
@@ -112,11 +112,11 @@ export default class DiscordController extends Controller {
             .describe("Whether birthday announcements are enabled.")
             .default(true),
           channel: z.string()
-            .describe("The channel to send birthday messages in. Either a channel name prefixed with '#' or a channel ID prefixed with '@'. If null, a channel with 'birthdays' in its name is used.")
+            .describe("The channel to send birthday messages in. Either a channel ID prefixed with '#' or a channel name prefixed with '@'. If null, a channel with 'birthdays' in its name is used.")
             .nullable()
             .default(null),
           role: z.string()
-            .describe("The role to give users on their birthday. Either a role name prefixed with '#' or a role ID prefixed with '@'. If null, a role with 'birthday' in its name is used.")
+            .describe("The role to give users on their birthday. Either a role ID prefixed with '#' or a role name prefixed with '@'. If null, a role with 'birthday' in its name is used.")
             .nullable()
             .default(null),
         })
@@ -131,16 +131,17 @@ export default class DiscordController extends Controller {
         roles: z.object({
           mod: z.string().nullable().default(null).describe("Moderator role ID (punish/offense/ticket/stage tools)."),
           admin: z.string().nullable().default(null).describe("Admin role ID (edit/entry/rules/set/drbot tools)."),
+          streamer: z.string().nullable().default(null).describe("Streamer role — can use /schedule and press its Partake button. Either a role ID prefixed with '#' or a role name prefixed with '@'. If null, a role named 'streamer(s)' is used."),
         })
           .describe("Role IDs for permission tiers.")
-          .default({ mod: null, admin: null }),
+          .default({ mod: null, admin: null, streamer: null }),
         channels: z.object({
           modLog: z.string().nullable().default(null).describe("Channel for moderation/audit logs."),
           tickets: z.string().nullable().default(null).describe("Channel for the ticket panel / where tickets are created."),
           memberLog: z.string().nullable().default(null).describe("Channel for join/leave / new-member notices."),
           liveNotify: z.string().nullable().default(null).describe("Channel for streamer LIVE notifications."),
         })
-          .describe("System channel IDs (or '#name'/'@id' selectors).")
+          .describe("System channel IDs (or '#id'/'@name' selectors).")
           .default({ modLog: null, tickets: null, memberLog: null, liveNotify: null }),
         punishments: z.object({
           enabled: z.boolean().default(true).describe("Whether the punishment/offense system is enabled."),

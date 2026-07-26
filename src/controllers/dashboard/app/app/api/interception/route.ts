@@ -110,6 +110,20 @@ export async function POST(req: NextRequest) {
           angleDeg: Number(data.angleDeg),
         });
         break;
+      case "sensitivitySet":
+        //? `scale` sets both axes; scaleX/scaleY override per-axis. The client clamps to [0.05, 20].
+        result = await client.interceptionSensitivitySet({
+          enabled: data.enabled === true,
+          scaleX: Number(data.scaleX ?? data.scale),
+          scaleY: Number(data.scaleY ?? data.scale),
+        });
+        break;
+      case "typosSet":
+        result = await client.interceptionTyposSet({
+          enabled: data.enabled === true,
+          chance: Number(data.chance),
+        });
+        break;
       case "scriptRun": {
         // Server-side interpreter (supports loop/chance/ranges). Fire-and-forget; stop via scriptStop.
         const steps = Array.isArray(data.steps) ? data.steps : [];
